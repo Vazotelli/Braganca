@@ -504,7 +504,7 @@ body {
 
 <script>
 // ─── CONFIG ──────────────────────────────────────────────────
-const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwLt6ubBNHFaFLRgaK2XszXawkAV_E9fEnHOIWDhQadeFfwCVf_A9pOnoQvQR-iiaWq/exec';
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbzCE9-MVMt6usF9xlTCYoZ9_989jbaH4ziXHxpGiHsRYx5dImcWSyJ8HCzLv8gHDpDX/exec';
 const VIEW_KEY = 'brg_view';
 const CPK      = 0.15;
 
@@ -550,12 +550,12 @@ function setLoading(on) {
 async function apiGet() {
   setLoading(true);
   try {
-    const r = await fetch(GAS_URL, {method:'GET'});
+    const r = await fetch(GAS_URL, {method:'GET', redirect:'follow'});
     const data = await r.json();
-    entries = data.sort((a,b) => b.id - a.id);
+    entries = Array.isArray(data) ? data.sort((a,b) => b.id - a.id) : [];
   } catch(e) {
     console.error('Erro ao carregar dados:', e);
-    alert('Erro ao carregar dados. Verifica a ligação.');
+    showToast('Erro ao carregar dados');
   }
   setLoading(false);
 }
@@ -565,11 +565,13 @@ async function apiPost(payload) {
   try {
     await fetch(GAS_URL, {
       method:'POST',
+      redirect:'follow',
+      headers:{'Content-Type':'text/plain'},
       body: JSON.stringify(payload)
     });
   } catch(e) {
     console.error('Erro ao guardar:', e);
-    alert('Erro ao guardar. Verifica a ligação.');
+    showToast('Erro ao guardar');
   }
   setLoading(false);
 }
@@ -861,6 +863,15 @@ function showCSVModal(csv){
   o.style.cssText='position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;padding:20px;gap:12px;';
   o.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:17px;font-weight:700;color:#fff">Exportar CSV</span><button onclick="this.closest('div[style]').remove()" style="background:#333;border:none;color:#fff;padding:6px 16px;border-radius:100px;font-size:14px;">Fechar</button></div><p style="font-size:13px;color:rgba(255,255,255,0.5)">Carrega em "Copiar tudo" e cola no Notes ou email.</p><textarea readonly style="flex:1;background:#1a1a1a;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:11px;padding:12px;font-family:monospace;resize:none;">${csv}</textarea><button onclick="navigator.clipboard.writeText(document.querySelector('textarea').value).then(()=>alert('Copiado!'))" style="background:#fff;color:#000;border:none;padding:14px;border-radius:14px;font-size:16px;font-weight:700;">Copiar tudo</button>`;
   document.body.appendChild(o);
+}
+
+// ─── TOAST ───────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:100px;font-size:13px;font-weight:500;z-index:999;border:0.5px solid rgba(255,255,255,0.15);white-space:nowrap;';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
 }
 
 // ─── INIT ────────────────────────────────────────────────────
