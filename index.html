@@ -504,7 +504,7 @@ body {
 
 <script>
 // ─── CONFIG ──────────────────────────────────────────────────
-const GAS_URL  = 'https://script.google.com/macros/s/AKfycbzCE9-MVMt6usF9xlTCYoZ9_989jbaH4ziXHxpGiHsRYx5dImcWSyJ8HCzLv8gHDpDX/exec';
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbyEdaA7iT6z7HmsO1SL7X6bHRlL8xuDO4DDItmcXYmHQtqvQEHG7_CkPjSSqTCgVCle/exec';
 const VIEW_KEY = 'brg_view';
 const CPK      = 0.15;
 
@@ -546,34 +546,44 @@ function setLoading(on) {
   document.getElementById('loading-bar').style.display = on ? 'block' : 'none';
 }
 
-// ─── API ─────────────────────────────────────────────────────
-async function apiGet() {
+// ─── API — tudo via GET para evitar CORS ─────────────────────
+// O Google Apps Script aceita GET sem restrições CORS.
+// Para escrita enviamos os dados como parâmetro JSON encoded na URL.
+
+async function apiCall(params) {
   setLoading(true);
+  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
   try {
-    const r = await fetch(GAS_URL, {method:'GET', redirect:'follow'});
-    const data = await r.json();
-    entries = Array.isArray(data) ? data.sort((a,b) => b.id - a.id) : [];
+    const r = await fetch(url, {method:'GET', redirect:'follow'});
+    const text = await r.text();
+    try { return JSON.parse(text); } catch(e) { return null; }
   } catch(e) {
-    console.error('Erro ao carregar dados:', e);
-    showToast('Erro ao carregar dados');
+    console.error('Erro API:', e);
+    showToast('Sem ligação — tenta de novo');
+    return null;
+  } finally {
+    setLoading(false);
   }
-  setLoading(false);
 }
 
-async function apiPost(payload) {
-  setLoading(true);
-  try {
-    await fetch(GAS_URL, {
-      method:'POST',
-      redirect:'follow',
-      headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify(payload)
-    });
-  } catch(e) {
-    console.error('Erro ao guardar:', e);
-    showToast('Erro ao guardar');
+async function apiGet() {
+  const data = await apiCall({action:'get'});
+  if(Array.isArray(data)) {
+    entries = data.sort((a,b) => Number(b.id) - Number(a.id));
   }
-  setLoading(false);
+  // se falhar mantém o que estava em memória — não apaga
+}
+
+async function apiSave(e) {
+  return await apiCall({action:'save', payload: JSON.stringify(e)});
+}
+
+async function apiUpdate(e) {
+  return await apiCall({action:'update', payload: JSON.stringify(e)});
+}
+
+async function apiDelete(id) {
+  return await apiCall({action:'delete', id: String(id)});
 }
 
 // ─── TOTAL ───────────────────────────────────────────────────
@@ -656,7 +666,7 @@ async function guardar() {
   entries.unshift(e);
   refreshTotal();
 
-  await apiPost({action:'save',...e});
+  await apiSave(e);
 
   ['c-desc','c-val','c-outro','c-nota','v-desc','v-km','v-nota'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('c-data').value=today();
@@ -729,7 +739,7 @@ async function saveEdit() {
   entries[idx]=updated;
   refreshTotal();
   closeSheetDirect();
-  await apiPost({action:'update',...updated});
+  await apiUpdate(updated);
   renderHist();
 }
 
@@ -739,7 +749,7 @@ async function deleteFromSheet() {
   entries=entries.filter(x=>x.id!==id);
   refreshTotal();
   closeSheetDirect();
-  await apiPost({action:'delete',id});
+  await apiDelete(id);
   renderHist();
 }
 
@@ -747,7 +757,7 @@ async function quickDel(id){
   if(!confirm('Apagar este registo?'))return;
   entries=entries.filter(e=>e.id!==id);
   refreshTotal();
-  await apiPost({action:'delete',id});
+  await apiDelete(id);
   renderHist();
 }
 
