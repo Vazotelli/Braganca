@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bragança R/C</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg:      #000000;
+  --bg2:     #111111;
+  --bg3:     #1a1a1a;
+  --bg4:     #222222;
+  --border:  rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.05);
+  --text:    #ffffff;
+  --text2:   rgba(255,255,255,0.55);
+  --text3:   rgba(255,255,255,0.25);
+  --blue:    #0A84FF;
+  --green:   #30D158;
+  --orange:  #FF9F0A;
+  --red:     #FF453A;
+  --purple:  #BF5AF2;
+  --teal:    #64D2FF;
+  --font:    -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+}
+
+html, body { background: var(--bg); }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: 82px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 0.5px solid var(--border);
+  padding: 14px 20px 12px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.topbar-eyebrow { font-size: 11px; font-weight: 500; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; }
+.topbar-title   { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; margin-top: 1px; }
+.topbar-total   { font-size: 22px; font-weight: 700; letter-spacing: -0.8px; }
+
+/* ── TABBAR ── */
+.tabbar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 0.5px solid var(--border);
+  display: flex;
+  padding: 8px 0 max(env(safe-area-inset-bottom),8px);
+  z-index: 100;
+}
+.tab {
+  flex: 1; background: none; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: var(--text3); transition: color 0.15s; padding: 4px 0;
+}
+.tab.active { color: var(--text); }
+.tab-icon  { font-size: 21px; line-height: 1; }
+.tab-label { font-size: 10px; font-weight: 500; }
+
+/* ── PAGES ── */
+.page { display: none; padding: 16px 16px 8px; }
+.page.on { display: block; animation: up 0.22s cubic-bezier(0.22,1,0.36,1); }
+@keyframes up { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── LABELS ── */
+.s-label {
+  font-size: 12px; font-weight: 600; color: var(--text3);
+  letter-spacing: 0.6px; text-transform: uppercase;
+  padding: 0 4px; margin: 20px 0 8px;
+}
+.s-label:first-child { margin-top: 4px; }
+
+/* ── HERO ── */
+.hero {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 20px; padding: 22px 22px 20px; margin-bottom: 10px;
+  position: relative; overflow: hidden;
+}
+.hero::after {
+  content: ''; position: absolute; bottom: -40px; right: -40px;
+  width: 140px; height: 140px;
+  background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero-label  { font-size: 12px; font-weight: 500; color: var(--text3); letter-spacing: 0.3px; }
+.hero-amount { font-size: 44px; font-weight: 700; letter-spacing: -2px; line-height: 1.05; margin-top: 4px; }
+.hero-amount span { font-size: 26px; font-weight: 600; letter-spacing: -1px; opacity: 0.6; margin-right: 2px; }
+.hero-meta   { font-size: 13px; color: var(--text3); margin-top: 10px; }
+.hero-pills  { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.hero-pill {
+  background: var(--bg3); border: 0.5px solid var(--border);
+  border-radius: 100px; padding: 5px 12px;
+  font-size: 12px; font-weight: 500; color: var(--text2);
+}
+.hero-pill b { color: var(--text); font-weight: 600; }
+
+/* ── GRID ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.mini-card {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 18px; padding: 16px;
+}
+.mini-icon  { font-size: 20px; margin-bottom: 8px; }
+.mini-label { font-size: 11px; font-weight: 500; color: var(--text3); }
+.mini-val   { font-size: 19px; font-weight: 700; letter-spacing: -0.5px; margin-top: 3px; }
+.mini-sub   { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── CHART ── */
+.chart-card {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 18px; padding: 18px 16px 14px; margin-bottom: 10px;
+}
+.chart-head { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 14px; }
+.chart-wrap { height: 150px; position: relative; }
+
+/* ── LIST CARD ── */
+.list-card {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 18px; overflow: hidden; margin-bottom: 10px;
+}
+.list-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 0.5px solid var(--border2);
+}
+.list-row:last-child { border-bottom: none; }
+.row-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.row-body  { flex: 1; min-width: 0; }
+.row-name  { font-size: 14px; font-weight: 500; }
+.row-bar   { height: 2px; background: var(--bg4); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.row-bar-fill { height: 100%; border-radius: 2px; }
+.row-right { text-align: right; flex-shrink: 0; }
+.row-amount { font-size: 14px; font-weight: 600; }
+.row-pct    { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+/* ── ENTRY ── */
+.entry {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 16px; margin-bottom: 8px; overflow: hidden;
+  animation: up 0.2s ease;
+}
+.entry-inner { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.entry-icon {
+  width: 42px; height: 42px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.entry-body  { flex: 1; min-width: 0; }
+.entry-desc  { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-meta  { font-size: 12px; color: var(--text3); margin-top: 3px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.phase-dot   { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 5px; }
+.entry-right { text-align: right; flex-shrink: 0; }
+.entry-amount { font-size: 16px; font-weight: 600; letter-spacing: -0.4px; }
+.entry-date   { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.entry-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.entry-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 2px 0 2px 8px; color: var(--text3);
+  transition: color 0.15s; line-height: 1;
+}
+.entry-btn.edit:active  { color: var(--blue); }
+.entry-btn.del:active   { color: var(--red); }
+
+/* ── SEGMENT ── */
+.seg { display: flex; background: var(--bg3); border-radius: 11px; padding: 3px; margin-bottom: 16px; }
+.seg-btn {
+  flex: 1; background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 14px; font-weight: 500;
+  padding: 8px 12px; border-radius: 9px; color: var(--text2);
+  transition: all 0.18s;
+}
+.seg-btn.on { background: var(--bg4); color: var(--text); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+
+/* ── FORM ── */
+.form-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 18px; overflow: hidden; margin-bottom: 10px; }
+.f-row { display: flex; align-items: center; padding: 0 16px; min-height: 50px; border-bottom: 0.5px solid var(--border2); }
+.f-row:last-child { border-bottom: none; }
+.f-label { font-size: 15px; color: var(--text2); min-width: 100px; flex-shrink: 0; }
+.f-input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-family: var(--font); font-size: 15px; color: var(--text);
+  text-align: right; padding: 14px 0; -webkit-appearance: none;
+}
+.f-input::placeholder { color: var(--text3); }
+.f-select {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-family: var(--font); font-size: 15px; color: var(--text);
+  text-align: right; padding: 14px 0; -webkit-appearance: none; cursor: pointer;
+}
+.f-select option { background: #1a1a1a; }
+.f-chevron { color: var(--text3); font-size: 12px; margin-left: 6px; }
+.outro-field { display: none; }
+.km-pill {
+  margin: 0 0 10px;
+  background: rgba(10,132,255,0.12); border: 0.5px solid rgba(10,132,255,0.25);
+  border-radius: 12px; padding: 10px 16px;
+  font-size: 13px; color: var(--blue); font-weight: 500; display: none;
+}
+
+/* ── BUTTONS ── */
+.btn { width: 100%; border: none; cursor: pointer; font-family: var(--font); font-weight: 600; padding: 15px; border-radius: 14px; transition: opacity 0.15s, transform 0.1s; }
+.btn:active { opacity: 0.75; transform: scale(0.99); }
+.btn-white   { background: var(--text); color: #000; font-size: 16px; margin-bottom: 10px; }
+.btn-ghost   { background: #2a2a2a; color: #ffffff; font-size: 15px; border: 0.5px solid rgba(255,255,255,0.2); margin-bottom: 8px; }
+.btn-danger  { background: #2a2a2a; color: var(--red); font-size: 15px; border: 0.5px solid rgba(255,69,58,0.4); }
+
+/* ── PILLS ── */
+.pills { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding-bottom: 10px; }
+.pills::-webkit-scrollbar { display: none; }
+.pill {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 100px; padding: 7px 15px;
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  color: var(--text2); cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
+}
+.pill.on { background: var(--text); color: #000; border-color: var(--text); }
+
+/* ── PHASE DOTS ── */
+.p-Projeto       { background: rgba(10,132,255,0.15);  color: var(--blue);   }
+.p-Licenciamento { background: rgba(191,90,242,0.15);  color: var(--purple); }
+.p-Obra          { background: rgba(255,159,10,0.15);  color: var(--orange); }
+.p-Venda         { background: rgba(48,209,88,0.15);   color: var(--green);  }
+
+/* ── SETTINGS ── */
+.setting-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 0.5px solid var(--border2); }
+.setting-row:last-child { border-bottom: none; }
+.s-key { font-size: 15px; }
+.s-val { font-size: 15px; color: var(--text3); }
+.s-val.hi { color: var(--text); font-weight: 500; }
+
+/* ── VIEW BANNER ── */
+.view-banner { background: var(--orange); color: #000; text-align: center; padding: 9px 16px; font-size: 13px; font-weight: 700; display: none; }
+
+/* ── EMPTY ── */
+.empty { text-align: center; padding: 60px 24px; }
+.empty-e { font-size: 44px; margin-bottom: 14px; }
+.empty-t { font-size: 17px; font-weight: 600; }
+.empty-s { font-size: 14px; color: var(--text3); margin-top: 6px; }
+
+/* ── BOTTOM SHEET (edit) ── */
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: 24px 24px 0 0;
+  width: 100%; max-width: 430px;
+  max-height: 92vh; overflow-y: auto;
+  padding: 0 0 max(env(safe-area-inset-bottom),20px);
+  animation: slideUp 0.3s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+.sheet-handle {
+  width: 36px; height: 4px; background: var(--bg4);
+  border-radius: 2px; margin: 12px auto 0;
+}
+.sheet-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px 12px;
+  border-bottom: 0.5px solid var(--border2);
+}
+.sheet-title { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; }
+.sheet-close {
+  background: var(--bg3); border: none; cursor: pointer;
+  color: var(--text2); font-size: 15px; font-weight: 500;
+  padding: 6px 14px; border-radius: 100px; font-family: var(--font);
+}
+.sheet-body { padding: 16px; }
+.sheet-actions { display: flex; gap: 8px; padding: 0 16px; }
+.sheet-actions .btn { margin-bottom: 0; }
+.btn-save-edit { background: var(--text); color: #000; font-size: 15px; font-weight: 600; }
+.btn-del-edit  { background: var(--bg3); color: var(--red); font-size: 15px; border: 0.5px solid rgba(255,69,58,0.3); }
+</style>
+</head>
+<body>
+
+<div class="view-banner" id="view-banner">👁 Modo Visualização</div>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-eyebrow">Projeto</div>
+    <div class="topbar-title">Bragança R/C</div>
+  </div>
+  <div class="topbar-total" id="nav-total">0 €</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="page on" id="pg-dash">
+  <div class="hero">
+    <div class="hero-label">TOTAL INVESTIDO</div>
+    <div class="hero-amount"><span>€</span><span id="h-total">0</span></div>
+    <div class="hero-meta" id="h-meta">Sem registos ainda</div>
+    <div class="hero-pills">
+      <div class="hero-pill">🚗 <b id="h-km">0 km</b></div>
+      <div class="hero-pill">📅 <b id="h-month">0 €</b> este mês</div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="mini-card">
+      <div class="mini-icon">📋</div>
+      <div class="mini-label">Registos</div>
+      <div class="mini-val" id="m-count">0</div>
+    </div>
+    <div class="mini-card">
+      <div class="mini-icon">⛽</div>
+      <div class="mini-label">Deslocações</div>
+      <div class="mini-val" id="m-desl">0 €</div>
+      <div class="mini-sub" id="m-desl-km">0 km</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-head">Evolução mensal</div>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+  <div class="s-label">Por Categoria</div>
+  <div class="list-card" id="d-cats"></div>
+  <div class="s-label">Por Fase</div>
+  <div class="list-card" id="d-phases"></div>
+  <div class="s-label">Últimos registos</div>
+  <div id="d-recent"></div>
+</div>
+
+<!-- REGISTAR -->
+<div class="page" id="pg-reg">
+  <div class="seg">
+    <button class="seg-btn on" id="sb-compra" onclick="setType('compra')">🛒 Compra</button>
+    <button class="seg-btn"   id="sb-viagem" onclick="setType('viagem')">🚗 Viagem</button>
+  </div>
+  <div id="fc">
+    <div class="form-card">
+      <div class="f-row"><div class="f-label">Descrição</div><input class="f-input" id="c-desc" type="text" placeholder="Obrigatório" autocomplete="off"/></div>
+      <div class="f-row"><div class="f-label">Valor</div><input class="f-input" id="c-val" type="number" placeholder="0,00" step="0.01" min="0" inputmode="decimal"/></div>
+      <div class="f-row"><div class="f-label">Data</div><input class="f-input" id="c-data" type="date"/></div>
+      <div class="f-row">
+        <div class="f-label">Categoria</div>
+        <select class="f-select" id="c-cat" onchange="checkOutro('c-cat','outro-row')">
+          <option value="Materiais">Materiais</option>
+          <option value="Mão-de-obra">Mão de obra</option>
+          <option value="Especialidades">Especialidades</option>
+          <option value="Arquiteto">Arquiteto</option>
+          <option value="Taxas-e-Licenças">Taxas e Licenças</option>
+          <option value="Equipamentos">Equipamentos</option>
+          <option value="Outros">Outros…</option>
+        </select><span class="f-chevron">›</span>
+      </div>
+      <div class="f-row outro-field" id="outro-row"><div class="f-label">Especificar</div><input class="f-input" id="c-outro" type="text" placeholder="Qual categoria?"/></div>
+      <div class="f-row">
+        <div class="f-label">Fase</div>
+        <select class="f-select" id="c-fase">
+          <option value="Projeto">Projeto</option>
+          <option value="Licenciamento">Licenciamento</option>
+          <option value="Obra">Obra</option>
+          <option value="Venda">Venda</option>
+        </select><span class="f-chevron">›</span>
+      </div>
+      <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="c-nota" type="text" placeholder="Opcional"/></div>
+    </div>
+  </div>
+  <div id="fv" style="display:none">
+    <div class="form-card">
+      <div class="f-row"><div class="f-label">Destino</div><input class="f-input" id="v-desc" type="text" placeholder="Motivo ou local" autocomplete="off"/></div>
+      <div class="f-row"><div class="f-label">Km totais</div><input class="f-input" id="v-km" type="number" placeholder="0" min="0" inputmode="numeric" oninput="calcKm()"/></div>
+      <div class="f-row"><div class="f-label">Data</div><input class="f-input" id="v-data" type="date"/></div>
+      <div class="f-row">
+        <div class="f-label">Fase</div>
+        <select class="f-select" id="v-fase">
+          <option value="Projeto">Projeto</option>
+          <option value="Licenciamento">Licenciamento</option>
+          <option value="Obra">Obra</option>
+          <option value="Venda">Venda</option>
+        </select><span class="f-chevron">›</span>
+      </div>
+      <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="v-nota" type="text" placeholder="Opcional"/></div>
+    </div>
+    <div class="km-pill" id="km-pill"></div>
+  </div>
+  <button class="btn btn-white" id="save-btn" onclick="guardar()">Guardar</button>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="page" id="pg-hist">
+  <div class="pills" id="pills"></div>
+  <div id="hist-list"></div>
+</div>
+
+<!-- CONFIG -->
+<div class="page" id="pg-cfg">
+  <div class="s-label">Veículo</div>
+  <div class="list-card">
+    <div class="setting-row"><span class="s-key">Modelo</span><span class="s-val">Golf V 2007</span></div>
+    <div class="setting-row"><span class="s-key">Consumo</span><span class="s-val">7,0 L / 100 km</span></div>
+    <div class="setting-row"><span class="s-key">Custo por km</span><span class="s-val hi">0,15 €</span></div>
+  </div>
+  <div class="s-label">Modo Leitura</div>
+  <div class="list-card">
+    <div class="setting-row"><span class="s-key">Partilha (só visualização)</span><span class="s-val hi" id="vm-label">Desativado</span></div>
+  </div>
+  <button class="btn btn-ghost" onclick="toggleView()">Ativar / Desativar modo leitura</button>
+  <div class="s-label">Dados</div>
+  <button class="btn btn-ghost" onclick="exportCSV()">Exportar CSV com totais</button>
+  <button class="btn btn-danger" onclick="clearAll()">Apagar todos os registos</button>
+</div>
+
+<!-- TABBAR -->
+<div class="tabbar">
+  <button class="tab active" id="t-dash" onclick="go('dash')"><span class="tab-icon">◻︎</span><span class="tab-label">Resumo</span></button>
+  <button class="tab"        id="t-reg"  onclick="go('reg')"><span class="tab-icon">＋</span><span class="tab-label">Registar</span></button>
+  <button class="tab"        id="t-hist" onclick="go('hist')"><span class="tab-icon">≡</span><span class="tab-label">Histórico</span></button>
+  <button class="tab"        id="t-cfg"  onclick="go('cfg')"><span class="tab-icon">◎</span><span class="tab-label">Config</span></button>
+</div>
+
+<!-- EDIT BOTTOM SHEET -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet(event)">
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title" id="sheet-title">Editar registo</div>
+      <button class="sheet-close" onclick="closeSheetDirect()">Cancelar</button>
+    </div>
+    <div class="sheet-body">
+      <!-- COMPRA EDIT -->
+      <div id="se-compra">
+        <div class="form-card">
+          <div class="f-row"><div class="f-label">Descrição</div><input class="f-input" id="e-desc" type="text" autocomplete="off"/></div>
+          <div class="f-row"><div class="f-label">Valor</div><input class="f-input" id="e-val" type="number" step="0.01" min="0" inputmode="decimal"/></div>
+          <div class="f-row"><div class="f-label">Data</div><input class="f-input" id="e-data" type="date"/></div>
+          <div class="f-row">
+            <div class="f-label">Categoria</div>
+            <select class="f-select" id="e-cat" onchange="checkOutro('e-cat','e-outro-row')">
+              <option value="Materiais">Materiais</option>
+              <option value="Mão-de-obra">Mão de obra</option>
+              <option value="Especialidades">Especialidades</option>
+              <option value="Arquiteto">Arquiteto</option>
+              <option value="Taxas-e-Licenças">Taxas e Licenças</option>
+              <option value="Equipamentos">Equipamentos</option>
+              <option value="Outros">Outros…</option>
+            </select><span class="f-chevron">›</span>
+          </div>
+          <div class="f-row outro-field" id="e-outro-row"><div class="f-label">Especificar</div><input class="f-input" id="e-outro" type="text" placeholder="Qual categoria?"/></div>
+          <div class="f-row">
+            <div class="f-label">Fase</div>
+            <select class="f-select" id="e-fase">
+              <option value="Projeto">Projeto</option>
+              <option value="Licenciamento">Licenciamento</option>
+              <option value="Obra">Obra</option>
+              <option value="Venda">Venda</option>
+            </select><span class="f-chevron">›</span>
+          </div>
+          <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="e-nota" type="text" placeholder="Opcional"/></div>
+        </div>
+      </div>
+      <!-- VIAGEM EDIT -->
+      <div id="se-viagem" style="display:none">
+        <div class="form-card">
+          <div class="f-row"><div class="f-label">Destino</div><input class="f-input" id="ev-desc" type="text" autocomplete="off"/></div>
+          <div class="f-row"><div class="f-label">Km totais</div><input class="f-input" id="ev-km" type="number" step="1" min="0" inputmode="numeric" oninput="calcKmEdit()"/></div>
+          <div class="f-row"><div class="f-label">Data</div><input class="f-input" id="ev-data" type="date"/></div>
+          <div class="f-row">
+            <div class="f-label">Fase</div>
+            <select class="f-select" id="ev-fase">
+              <option value="Projeto">Projeto</option>
+              <option value="Licenciamento">Licenciamento</option>
+              <option value="Obra">Obra</option>
+              <option value="Venda">Venda</option>
+            </select><span class="f-chevron">›</span>
+          </div>
+          <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="ev-nota" type="text" placeholder="Opcional"/></div>
+        </div>
+        <div class="km-pill" id="ev-km-pill"></div>
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-save-edit" style="flex:2" onclick="saveEdit()">Guardar alterações</button>
+      <button class="btn btn-del-edit"  style="flex:1" onclick="deleteFromSheet()">Apagar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONSTANTS ──────────────────────────────────────────────
+const KEY      = 'brg4';
+const VIEW_KEY = 'brg4_view';
+const CPK      = 0.15;
+
+const CAT_META = {
+  'Materiais':        { icon:'🧱', col:'#FF9F0A' },
+  'Mão-de-obra':      { icon:'👷', col:'#BF5AF2' },
+  'Especialidades':   { icon:'🔌', col:'#64D2FF' },
+  'Arquiteto':        { icon:'📐', col:'#0A84FF' },
+  'Taxas-e-Licenças': { icon:'📜', col:'#30D158' },
+  'Equipamentos':     { icon:'🔩', col:'#FF453A' },
+  'Deslocações':      { icon:'🚗', col:'#0A84FF' },
+  'Outros':           { icon:'📦', col:'#8E8E93' },
+};
+
+const PHASE_META = {
+  'Projeto':       { col:'#0A84FF' },
+  'Licenciamento': { col:'#BF5AF2' },
+  'Obra':          { col:'#FF9F0A' },
+  'Venda':         { col:'#30D158' },
+};
+
+const KNOWN_CATS = ['Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros'];
+const FILTERS = ['Todos','Compras','Viagens','Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros','Projeto','Licenciamento','Obra','Venda'];
+const FILTER_LABELS = { 'Taxas-e-Licenças':'Taxas / Licenças' };
+
+let curType   = 'compra';
+let curFilter = 'Todos';
+let viewMode  = localStorage.getItem(VIEW_KEY) === '1';
+let chartInst = null;
+let editingId = null;
+
+// ─── DATA ────────────────────────────────────────────────────
+const load  = () => JSON.parse(localStorage.getItem(KEY) || '[]');
+const store = es => { localStorage.setItem(KEY, JSON.stringify(es)); refreshTotal(); };
+
+// ─── FORMAT ──────────────────────────────────────────────────
+const fmt  = n => n.toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const fmtK = n => n.toLocaleString('pt-PT',{minimumFractionDigits:0,maximumFractionDigits:0})+' €';
+const fmtD = d => { if(!d) return ''; const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
+const today = () => new Date().toISOString().split('T')[0];
+
+// ─── NAV ─────────────────────────────────────────────────────
+function go(p) {
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('pg-'+p).classList.add('on');
+  document.getElementById('t-'+p).classList.add('active');
+  if(p==='dash') renderDash();
+  if(p==='hist') renderHist();
+  if(p==='cfg')  renderCfg();
+}
+
+function refreshTotal() {
+  const t=load().reduce((a,e)=>a+e.valor,0);
+  document.getElementById('nav-total').textContent=fmtK(t);
+}
+
+// ─── VIEW MODE ───────────────────────────────────────────────
+function applyView() {
+  document.getElementById('view-banner').style.display = viewMode?'block':'none';
+  document.getElementById('save-btn').style.display    = viewMode?'none':'block';
+  document.getElementById('t-reg').style.display       = viewMode?'none':'flex';
+}
+function toggleView() {
+  viewMode=!viewMode;
+  localStorage.setItem(VIEW_KEY,viewMode?'1':'0');
+  applyView(); renderCfg();
+}
+
+// ─── TYPE ────────────────────────────────────────────────────
+function setType(t) {
+  curType=t;
+  document.getElementById('sb-compra').classList.toggle('on',t==='compra');
+  document.getElementById('sb-viagem').classList.toggle('on',t==='viagem');
+  document.getElementById('fc').style.display = t==='compra'?'block':'none';
+  document.getElementById('fv').style.display = t==='viagem'?'block':'none';
+  document.getElementById('km-pill').style.display='none';
+}
+
+function checkOutro(selId, rowId) {
+  const v=document.getElementById(selId).value;
+  document.getElementById(rowId).style.display=v==='Outros'?'flex':'none';
+}
+
+function calcKm() {
+  const km=parseFloat(document.getElementById('v-km').value)||0;
+  const pill=document.getElementById('km-pill');
+  if(km>0){pill.style.display='block'; pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;} else pill.style.display='none';
+}
+
+function calcKmEdit() {
+  const km=parseFloat(document.getElementById('ev-km').value)||0;
+  const pill=document.getElementById('ev-km-pill');
+  if(km>0){pill.style.display='block'; pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;} else pill.style.display='none';
+}
+
+// ─── SAVE NEW ────────────────────────────────────────────────
+function guardar() {
+  if(viewMode) return;
+  const es=load(); let e;
+  if(curType==='compra') {
+    const desc=document.getElementById('c-desc').value.trim();
+    const val=parseFloat(document.getElementById('c-val').value);
+    const data=document.getElementById('c-data').value;
+    const catRaw=document.getElementById('c-cat').value;
+    const cat=catRaw==='Outros'?(document.getElementById('c-outro').value.trim()||'Outros'):catRaw;
+    const fase=document.getElementById('c-fase').value;
+    const nota=document.getElementById('c-nota').value.trim();
+    if(!desc||!val||!data){alert('Preenche descrição, valor e data.');return;}
+    e={id:Date.now(),tipo:'Compra',desc,valor:val,data,cat,fase,nota};
+  } else {
+    const desc=document.getElementById('v-desc').value.trim();
+    const km=parseFloat(document.getElementById('v-km').value);
+    const data=document.getElementById('v-data').value;
+    const fase=document.getElementById('v-fase').value;
+    const nota=document.getElementById('v-nota').value.trim();
+    if(!desc||!km||!data){alert('Preenche destino, km e data.');return;}
+    e={id:Date.now(),tipo:'Viagem',desc,km,valor:+(km*CPK).toFixed(2),data,cat:'Deslocações',fase,nota};
+  }
+  es.unshift(e); store(es);
+  ['c-desc','c-val','c-outro','c-nota','v-desc','v-km','v-nota'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('c-data').value=today();
+  document.getElementById('v-data').value=today();
+  document.getElementById('outro-row').style.display='none';
+  document.getElementById('km-pill').style.display='none';
+  go('dash');
+}
+
+// ─── EDIT SHEET ──────────────────────────────────────────────
+function openEdit(id) {
+  if(viewMode) return;
+  const e=load().find(x=>x.id===id);
+  if(!e) return;
+  editingId=id;
+
+  const isViagem=e.tipo==='Viagem';
+  document.getElementById('sheet-title').textContent = isViagem?'Editar viagem':'Editar compra';
+  document.getElementById('se-compra').style.display = isViagem?'none':'block';
+  document.getElementById('se-viagem').style.display = isViagem?'block':'none';
+
+  if(isViagem) {
+    document.getElementById('ev-desc').value=e.desc;
+    document.getElementById('ev-km').value=e.km||'';
+    document.getElementById('ev-data').value=e.data;
+    setSelectVal('ev-fase',e.fase);
+    document.getElementById('ev-nota').value=e.nota||'';
+    const pill=document.getElementById('ev-km-pill');
+    if(e.km){pill.style.display='block';pill.textContent=`${e.km} km × 0,15 €/km = ${fmt(e.km*CPK)}`;}
+  } else {
+    document.getElementById('e-desc').value=e.desc;
+    document.getElementById('e-val').value=e.valor;
+    document.getElementById('e-data').value=e.data;
+    document.getElementById('e-nota').value=e.nota||'';
+    setSelectVal('e-fase',e.fase);
+    // category
+    const knownCat=KNOWN_CATS.includes(e.cat);
+    setSelectVal('e-cat', knownCat?e.cat:'Outros');
+    const outroRow=document.getElementById('e-outro-row');
+    if(!knownCat){
+      outroRow.style.display='flex';
+      document.getElementById('e-outro').value=e.cat;
+    } else { outroRow.style.display='none'; }
+  }
+
+  document.getElementById('sheet-overlay').classList.add('open');
+}
+
+function setSelectVal(id, val) {
+  const sel=document.getElementById(id);
+  for(let o of sel.options) { if(o.value===val){sel.value=val;return;} }
+}
+
+function closeSheet(ev) {
+  if(ev.target===document.getElementById('sheet-overlay')) closeSheetDirect();
+}
+function closeSheetDirect() {
+  document.getElementById('sheet-overlay').classList.remove('open');
+  editingId=null;
+}
+
+function saveEdit() {
+  const es=load();
+  const idx=es.findIndex(x=>x.id===editingId);
+  if(idx<0) return;
+  const e=es[idx];
+
+  if(e.tipo==='Viagem') {
+    const desc=document.getElementById('ev-desc').value.trim();
+    const km=parseFloat(document.getElementById('ev-km').value);
+    const data=document.getElementById('ev-data').value;
+    const fase=document.getElementById('ev-fase').value;
+    const nota=document.getElementById('ev-nota').value.trim();
+    if(!desc||!km||!data){alert('Preenche todos os campos obrigatórios.');return;}
+    es[idx]={...e,desc,km,valor:+(km*CPK).toFixed(2),data,fase,nota};
+  } else {
+    const desc=document.getElementById('e-desc').value.trim();
+    const val=parseFloat(document.getElementById('e-val').value);
+    const data=document.getElementById('e-data').value;
+    const catRaw=document.getElementById('e-cat').value;
+    const cat=catRaw==='Outros'?(document.getElementById('e-outro').value.trim()||'Outros'):catRaw;
+    const fase=document.getElementById('e-fase').value;
+    const nota=document.getElementById('e-nota').value.trim();
+    if(!desc||!val||!data){alert('Preenche todos os campos obrigatórios.');return;}
+    es[idx]={...e,desc,valor:val,data,cat,fase,nota};
+  }
+
+  store(es);
+  closeSheetDirect();
+  renderHist();
+}
+
+function deleteFromSheet() {
+  if(!confirm('Apagar este registo?')) return;
+  store(load().filter(x=>x.id!==editingId));
+  closeSheetDirect();
+  renderHist();
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+function renderDash() {
+  const es=load();
+  const total=es.reduce((a,e)=>a+e.valor,0);
+  document.getElementById('h-total').textContent=total.toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('h-meta').textContent=es.length
+    ?`${es.length} registo${es.length!==1?'s':''} · desde ${fmtD(es[es.length-1].data)}`
+    :'Sem registos ainda';
+
+  const viagens=es.filter(e=>e.tipo==='Viagem');
+  const km=viagens.reduce((a,e)=>a+(e.km||0),0);
+  document.getElementById('h-km').textContent=km.toLocaleString('pt-PT')+' km';
+
+  const now=new Date();
+  const mEs=es.filter(e=>{if(!e.data)return false;const d=new Date(e.data+'T12:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  document.getElementById('h-month').textContent=fmtK(mEs.reduce((a,e)=>a+e.valor,0));
+  document.getElementById('m-count').textContent=es.length;
+  document.getElementById('m-desl').textContent=fmt(viagens.reduce((a,e)=>a+e.valor,0));
+  document.getElementById('m-desl-km').textContent=km.toLocaleString('pt-PT')+' km';
+
+  renderChart(es);
+
+  // cats
+  const catT={};
+  es.forEach(e=>{catT[e.cat]=(catT[e.cat]||0)+e.valor;});
+  const cEl=document.getElementById('d-cats');
+  if(!Object.keys(catT).length){cEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px">Sem dados</div>';}
+  else {
+    const max=Math.max(...Object.values(catT));
+    cEl.innerHTML=Object.entries(catT).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
+      const m=CAT_META[cat]||{icon:'📦',col:'#8E8E93'};
+      const pct=total?+(val/total*100).toFixed(0):0;
+      const bar=+(val/max*100).toFixed(0);
+      return `<div class="list-row">
+        <div class="row-icon" style="background:${m.col}18">${m.icon}</div>
+        <div class="row-body">
+          <div class="row-name">${cat.replace(/-/g,' ')}</div>
+          <div class="row-bar"><div class="row-bar-fill" style="width:${bar}%;background:${m.col}"></div></div>
+        </div>
+        <div class="row-right"><div class="row-amount">${fmt(val)}</div><div class="row-pct">${pct}%</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // phases
+  const phT={};
+  es.forEach(e=>{if(e.fase)phT[e.fase]=(phT[e.fase]||0)+e.valor;});
+  const pEl=document.getElementById('d-phases');
+  if(!Object.keys(phT).length){pEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px">Sem dados</div>';}
+  else {
+    pEl.innerHTML=Object.entries(phT).sort((a,b)=>b[1]-a[1]).map(([fase,val])=>{
+      const pm=PHASE_META[fase]||{col:'#8E8E93'};
+      return `<div class="list-row">
+        <div class="row-icon" style="background:${pm.col}18;color:${pm.col};font-size:13px;font-weight:700">${fase.charAt(0)}</div>
+        <div class="row-body"><div class="row-name">${fase}</div></div>
+        <div class="row-amount">${fmt(val)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const rEl=document.getElementById('d-recent');
+  const rec=es.slice(0,4);
+  rEl.innerHTML=rec.length
+    ?rec.map(e=>entryHTML(e,false)).join('')
+    :`<div class="empty"><div class="empty-e">📭</div><div class="empty-t">Sem registos</div><div class="empty-s">Vai a Registar para começar.</div></div>`;
+}
+
+// ─── CHART ───────────────────────────────────────────────────
+function renderChart(es) {
+  const monthly={};
+  es.forEach(e=>{
+    if(!e.data)return;
+    const d=new Date(e.data+'T12:00');
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    monthly[k]=(monthly[k]||0)+e.valor;
+  });
+  const keys=Object.keys(monthly).sort();
+  const labels=keys.map(k=>{const[y,m]=k.split('-');return new Date(+y,+m-1).toLocaleDateString('pt-PT',{month:'short'});});
+  const vals=keys.map(k=>+monthly[k].toFixed(2));
+  const ctx=document.getElementById('chart').getContext('2d');
+  if(chartInst)chartInst.destroy();
+  if(!vals.length){
+    ctx.clearRect(0,0,400,200);
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    ctx.font='13px -apple-system';
+    ctx.textAlign='center';
+    ctx.fillText('Sem dados ainda',200,80);
+    return;
+  }
+  chartInst=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{
+      data:vals,
+      borderColor:'rgba(255,255,255,0.9)',
+      backgroundColor:ctx2=>{const g=ctx2.chart.ctx.createLinearGradient(0,0,0,150);g.addColorStop(0,'rgba(255,255,255,0.1)');g.addColorStop(1,'rgba(255,255,255,0)');return g;},
+      borderWidth:1.5,pointBackgroundColor:'#fff',pointRadius:3,pointHoverRadius:5,tension:0.45,fill:true,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(20,20,20,0.95)',borderColor:'rgba(255,255,255,0.08)',borderWidth:0.5,padding:10,cornerRadius:10,titleColor:'rgba(255,255,255,0.4)',bodyColor:'#fff',bodyFont:{size:14,weight:'600'},callbacks:{label:c=>fmt(c.raw)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10}},border:{display:false}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10},callback:v=>v+'€'},border:{display:false}},
+      }
+    }
+  });
+}
+
+// ─── ENTRY HTML ──────────────────────────────────────────────
+function entryHTML(e, showActions=true) {
+  const m=CAT_META[e.cat]||{icon:'📦',col:'#8E8E93'};
+  const metaInfo=e.tipo==='Viagem'?`${e.km} km`:e.cat.replace(/-/g,' ');
+  const actions=showActions&&!viewMode
+    ?`<div class="entry-actions">
+        <button class="entry-btn edit" onclick="openEdit(${e.id})">✏️</button>
+        <button class="entry-btn del"  onclick="quickDel(${e.id})">−</button>
+      </div>`
+    :'';
+  return `<div class="entry" id="en-${e.id}">
+    <div class="entry-inner">
+      <div class="entry-icon" style="background:${m.col}18">${m.icon}</div>
+      <div class="entry-body">
+        <div class="entry-desc">${e.desc}</div>
+        <div class="entry-meta">
+          ${metaInfo}
+          ${e.fase?`<span class="phase-dot p-${e.fase}">${e.fase}</span>`:''}
+          ${e.nota?`· ${e.nota}`:''}
+        </div>
+      </div>
+      <div class="entry-right">
+        <div class="entry-amount">${fmt(e.valor)}</div>
+        <div class="entry-date">${fmtD(e.data)}</div>
+      </div>
+      ${actions}
+    </div>
+  </div>`;
+}
+
+function quickDel(id) {
+  if(!confirm('Apagar este registo?'))return;
+  store(load().filter(e=>e.id!==id));
+  renderHist();
+}
+
+// ─── HISTÓRICO ───────────────────────────────────────────────
+function renderHist() {
+  const pillsEl=document.getElementById('pills');
+  pillsEl.innerHTML=FILTERS.map(f=>`<button class="pill${curFilter===f?' on':''}" onclick="setFilter('${f}')">${FILTER_LABELS[f]||f}</button>`).join('');
+  let es=load();
+  if(curFilter!=='Todos') {
+    es=es.filter(e=>{
+      if(curFilter==='Compras')return e.tipo==='Compra';
+      if(curFilter==='Viagens')return e.tipo==='Viagem';
+      return e.cat===curFilter||e.fase===curFilter;
+    });
+  }
+  document.getElementById('hist-list').innerHTML=es.length
+    ?es.map(e=>entryHTML(e,true)).join('')
+    :`<div class="empty"><div class="empty-e">🔍</div><div class="empty-t">Sem resultados</div><div class="empty-s">Tenta outro filtro.</div></div>`;
+}
+
+function setFilter(f){curFilter=f;renderHist();}
+
+// ─── CONFIG ──────────────────────────────────────────────────
+function renderCfg() {
+  document.getElementById('vm-label').textContent=viewMode?'Ativado':'Desativado';
+}
+
+// ─── EXPORT CSV COM TOTAIS (iOS Safari compatible) ───────────
+function exportCSV() {
+  const es=load();
+  if(!es.length){alert('Sem dados para exportar.');return;}
+
+  const h='Data,Tipo,Descrição,Categoria,Fase,Km,Valor (€),Nota\n';
+  const rows=es.map(e=>`${e.data},${e.tipo},"${e.desc}",${(e.cat||'').replace(/-/g,' ')},${e.fase||''},${e.km||''},${e.valor.toFixed(2)},"${e.nota||''}"`).join('\n');
+
+  const total=es.reduce((a,e)=>a+e.valor,0);
+  const catT={};
+  es.forEach(e=>{catT[e.cat]=(catT[e.cat]||0)+e.valor;});
+  const phT={};
+  es.forEach(e=>{if(e.fase)phT[e.fase]=(phT[e.fase]||0)+e.valor;});
+  const kmTotal=es.filter(e=>e.tipo==='Viagem').reduce((a,e)=>a+(e.km||0),0);
+
+  let totals='\n\nRESUMO\n';
+  totals+=`Total geral,${total.toFixed(2)} EUR\n`;
+  totals+=`Total km,${kmTotal} km\n`;
+  totals+=`Nr registos,${es.length}\n`;
+  totals+='\nPOR CATEGORIA\n';
+  Object.entries(catT).sort((a,b)=>b[1]-a[1]).forEach(([cat,val])=>{
+    totals+=`${cat.replace(/-/g,' ')},${val.toFixed(2)} EUR\n`;
+  });
+  totals+='\nPOR FASE\n';
+  Object.entries(phT).sort((a,b)=>b[1]-a[1]).forEach(([fase,val])=>{
+    totals+=`${fase},${val.toFixed(2)} EUR\n`;
+  });
+
+  const csvContent = h + rows + totals;
+
+  // iOS Safari: open in new tab so user can share/save
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(isIOS) {
+    // encode as data URI and open — user can then share from Safari
+    const encoded = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    const w = window.open(encoded, '_blank');
+    if(!w) {
+      // fallback: show in a modal to copy
+      showCSVModal(csvContent);
+    }
+  } else {
+    const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `braganca_${today()}.csv`;
+    a.click();
+  }
+}
+
+function showCSVModal(csv) {
+  // create overlay with textarea to copy
+  const overlay = document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;padding:20px;gap:12px;';
+  overlay.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:17px;font-weight:700;color:#fff">Copiar CSV</span>
+      <button onclick="this.closest('div[style]').remove()" style="background:#333;border:none;color:#fff;padding:6px 16px;border-radius:100px;font-size:14px;font-family:var(--font)">Fechar</button>
+    </div>
+    <p style="font-size:13px;color:rgba(255,255,255,0.5)">Selecciona tudo e copia para o Notes ou email.</p>
+    <textarea readonly style="flex:1;background:#1a1a1a;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:11px;padding:12px;font-family:monospace;resize:none;">${csv}</textarea>
+    <button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.querySelector('textarea').value).then(()=>alert('Copiado!'))" style="background:#fff;color:#000;border:none;padding:14px;border-radius:14px;font-size:16px;font-weight:700;font-family:var(--font)">Copiar tudo</button>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function clearAll() {
+  if(!confirm('Apagar TODOS os registos? Irreversível.'))return;
+  localStorage.removeItem(KEY);
+  refreshTotal(); renderDash();
+}
+
+// ─── INIT ────────────────────────────────────────────────────
+document.getElementById('c-data').value=today();
+document.getElementById('v-data').value=today();
+applyView(); refreshTotal(); renderDash();
+</script>
+</body>
+</html>
