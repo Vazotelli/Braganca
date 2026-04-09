@@ -298,6 +298,8 @@ body {
 </head>
 <body>
 
+<div id="loading-bar" style="display:none;position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#0A84FF,#64D2FF);z-index:999;animation:shimmer 1s infinite;"></div>
+<style>@keyframes shimmer{0%{opacity:1}50%{opacity:0.4}100%{opacity:1}}</style>
 <div class="view-banner" id="view-banner">👁 Modo Visualização</div>
 
 <div class="topbar">
@@ -501,9 +503,9 @@ body {
 </div>
 
 <script>
-// ─── CONSTANTS ──────────────────────────────────────────────
-const KEY      = 'brg4';
-const VIEW_KEY = 'brg4_view';
+// ─── CONFIG ──────────────────────────────────────────────────
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwLt6ubBNHFaFLRgaK2XszXawkAV_E9fEnHOIWDhQadeFfwCVf_A9pOnoQvQR-iiaWq/exec';
+const VIEW_KEY = 'brg_view';
 const CPK      = 0.15;
 
 const CAT_META = {
@@ -516,14 +518,12 @@ const CAT_META = {
   'Deslocações':      { icon:'🚗', col:'#0A84FF' },
   'Outros':           { icon:'📦', col:'#8E8E93' },
 };
-
 const PHASE_META = {
   'Projeto':       { col:'#0A84FF' },
   'Licenciamento': { col:'#BF5AF2' },
   'Obra':          { col:'#FF9F0A' },
   'Venda':         { col:'#30D158' },
 };
-
 const KNOWN_CATS = ['Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros'];
 const FILTERS = ['Todos','Compras','Viagens','Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros','Projeto','Licenciamento','Obra','Venda'];
 const FILTER_LABELS = { 'Taxas-e-Licenças':'Taxas / Licenças' };
@@ -533,10 +533,7 @@ let curFilter = 'Todos';
 let viewMode  = localStorage.getItem(VIEW_KEY) === '1';
 let chartInst = null;
 let editingId = null;
-
-// ─── DATA ────────────────────────────────────────────────────
-const load  = () => JSON.parse(localStorage.getItem(KEY) || '[]');
-const store = es => { localStorage.setItem(KEY, JSON.stringify(es)); refreshTotal(); };
+let entries   = []; // in-memory cache
 
 // ─── FORMAT ──────────────────────────────────────────────────
 const fmt  = n => n.toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
@@ -544,20 +541,54 @@ const fmtK = n => n.toLocaleString('pt-PT',{minimumFractionDigits:0,maximumFract
 const fmtD = d => { if(!d) return ''; const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
 const today = () => new Date().toISOString().split('T')[0];
 
+// ─── LOADING STATE ───────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById('loading-bar').style.display = on ? 'block' : 'none';
+}
+
+// ─── API ─────────────────────────────────────────────────────
+async function apiGet() {
+  setLoading(true);
+  try {
+    const r = await fetch(GAS_URL, {method:'GET'});
+    const data = await r.json();
+    entries = data.sort((a,b) => b.id - a.id);
+  } catch(e) {
+    console.error('Erro ao carregar dados:', e);
+    alert('Erro ao carregar dados. Verifica a ligação.');
+  }
+  setLoading(false);
+}
+
+async function apiPost(payload) {
+  setLoading(true);
+  try {
+    await fetch(GAS_URL, {
+      method:'POST',
+      body: JSON.stringify(payload)
+    });
+  } catch(e) {
+    console.error('Erro ao guardar:', e);
+    alert('Erro ao guardar. Verifica a ligação.');
+  }
+  setLoading(false);
+}
+
+// ─── TOTAL ───────────────────────────────────────────────────
+function refreshTotal() {
+  const t = entries.reduce((a,e)=>a+e.valor,0);
+  document.getElementById('nav-total').textContent = fmtK(t);
+}
+
 // ─── NAV ─────────────────────────────────────────────────────
-function go(p) {
+async function go(p) {
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
   document.getElementById('pg-'+p).classList.add('on');
   document.getElementById('t-'+p).classList.add('active');
-  if(p==='dash') renderDash();
-  if(p==='hist') renderHist();
+  if(p==='dash') { await apiGet(); refreshTotal(); renderDash(); }
+  if(p==='hist') { await apiGet(); refreshTotal(); renderHist(); }
   if(p==='cfg')  renderCfg();
-}
-
-function refreshTotal() {
-  const t=load().reduce((a,e)=>a+e.valor,0);
-  document.getElementById('nav-total').textContent=fmtK(t);
 }
 
 // ─── VIEW MODE ───────────────────────────────────────────────
@@ -581,28 +612,24 @@ function setType(t) {
   document.getElementById('fv').style.display = t==='viagem'?'block':'none';
   document.getElementById('km-pill').style.display='none';
 }
-
 function checkOutro(selId, rowId) {
-  const v=document.getElementById(selId).value;
-  document.getElementById(rowId).style.display=v==='Outros'?'flex':'none';
+  document.getElementById(rowId).style.display = document.getElementById(selId).value==='Outros'?'flex':'none';
 }
-
 function calcKm() {
   const km=parseFloat(document.getElementById('v-km').value)||0;
   const pill=document.getElementById('km-pill');
-  if(km>0){pill.style.display='block'; pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;} else pill.style.display='none';
+  if(km>0){pill.style.display='block';pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;}else pill.style.display='none';
 }
-
 function calcKmEdit() {
   const km=parseFloat(document.getElementById('ev-km').value)||0;
   const pill=document.getElementById('ev-km-pill');
-  if(km>0){pill.style.display='block'; pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;} else pill.style.display='none';
+  if(km>0){pill.style.display='block';pill.textContent=`${km} km × 0,15 €/km = ${fmt(km*CPK)}`;}else pill.style.display='none';
 }
 
 // ─── SAVE NEW ────────────────────────────────────────────────
-function guardar() {
+async function guardar() {
   if(viewMode) return;
-  const es=load(); let e;
+  let e;
   if(curType==='compra') {
     const desc=document.getElementById('c-desc').value.trim();
     const val=parseFloat(document.getElementById('c-val').value);
@@ -612,7 +639,7 @@ function guardar() {
     const fase=document.getElementById('c-fase').value;
     const nota=document.getElementById('c-nota').value.trim();
     if(!desc||!val||!data){alert('Preenche descrição, valor e data.');return;}
-    e={id:Date.now(),tipo:'Compra',desc,valor:val,data,cat,fase,nota};
+    e={id:Date.now(),tipo:'Compra',desc,valor:val,data,cat,fase,km:null,nota};
   } else {
     const desc=document.getElementById('v-desc').value.trim();
     const km=parseFloat(document.getElementById('v-km').value);
@@ -622,7 +649,13 @@ function guardar() {
     if(!desc||!km||!data){alert('Preenche destino, km e data.');return;}
     e={id:Date.now(),tipo:'Viagem',desc,km,valor:+(km*CPK).toFixed(2),data,cat:'Deslocações',fase,nota};
   }
-  es.unshift(e); store(es);
+
+  // optimistic update
+  entries.unshift(e);
+  refreshTotal();
+
+  await apiPost({action:'save',...e});
+
   ['c-desc','c-val','c-outro','c-nota','v-desc','v-km','v-nota'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('c-data').value=today();
   document.getElementById('v-data').value=today();
@@ -634,15 +667,13 @@ function guardar() {
 // ─── EDIT SHEET ──────────────────────────────────────────────
 function openEdit(id) {
   if(viewMode) return;
-  const e=load().find(x=>x.id===id);
+  const e=entries.find(x=>x.id===id);
   if(!e) return;
   editingId=id;
-
   const isViagem=e.tipo==='Viagem';
   document.getElementById('sheet-title').textContent = isViagem?'Editar viagem':'Editar compra';
   document.getElementById('se-compra').style.display = isViagem?'none':'block';
   document.getElementById('se-viagem').style.display = isViagem?'block':'none';
-
   if(isViagem) {
     document.getElementById('ev-desc').value=e.desc;
     document.getElementById('ev-km').value=e.km||'';
@@ -657,46 +688,31 @@ function openEdit(id) {
     document.getElementById('e-data').value=e.data;
     document.getElementById('e-nota').value=e.nota||'';
     setSelectVal('e-fase',e.fase);
-    // category
     const knownCat=KNOWN_CATS.includes(e.cat);
-    setSelectVal('e-cat', knownCat?e.cat:'Outros');
+    setSelectVal('e-cat',knownCat?e.cat:'Outros');
     const outroRow=document.getElementById('e-outro-row');
-    if(!knownCat){
-      outroRow.style.display='flex';
-      document.getElementById('e-outro').value=e.cat;
-    } else { outroRow.style.display='none'; }
+    if(!knownCat){outroRow.style.display='flex';document.getElementById('e-outro').value=e.cat;}
+    else outroRow.style.display='none';
   }
-
   document.getElementById('sheet-overlay').classList.add('open');
 }
+function setSelectVal(id,val){const sel=document.getElementById(id);for(let o of sel.options){if(o.value===val){sel.value=val;return;}}}
+function closeSheet(ev){if(ev.target===document.getElementById('sheet-overlay'))closeSheetDirect();}
+function closeSheetDirect(){document.getElementById('sheet-overlay').classList.remove('open');editingId=null;}
 
-function setSelectVal(id, val) {
-  const sel=document.getElementById(id);
-  for(let o of sel.options) { if(o.value===val){sel.value=val;return;} }
-}
-
-function closeSheet(ev) {
-  if(ev.target===document.getElementById('sheet-overlay')) closeSheetDirect();
-}
-function closeSheetDirect() {
-  document.getElementById('sheet-overlay').classList.remove('open');
-  editingId=null;
-}
-
-function saveEdit() {
-  const es=load();
-  const idx=es.findIndex(x=>x.id===editingId);
-  if(idx<0) return;
-  const e=es[idx];
-
-  if(e.tipo==='Viagem') {
+async function saveEdit() {
+  const idx=entries.findIndex(x=>x.id===editingId);
+  if(idx<0)return;
+  const e=entries[idx];
+  let updated;
+  if(e.tipo==='Viagem'){
     const desc=document.getElementById('ev-desc').value.trim();
     const km=parseFloat(document.getElementById('ev-km').value);
     const data=document.getElementById('ev-data').value;
     const fase=document.getElementById('ev-fase').value;
     const nota=document.getElementById('ev-nota').value.trim();
-    if(!desc||!km||!data){alert('Preenche todos os campos obrigatórios.');return;}
-    es[idx]={...e,desc,km,valor:+(km*CPK).toFixed(2),data,fase,nota};
+    if(!desc||!km||!data){alert('Preenche todos os campos.');return;}
+    updated={...e,desc,km,valor:+(km*CPK).toFixed(2),data,fase,nota};
   } else {
     const desc=document.getElementById('e-desc').value.trim();
     const val=parseFloat(document.getElementById('e-val').value);
@@ -705,265 +721,153 @@ function saveEdit() {
     const cat=catRaw==='Outros'?(document.getElementById('e-outro').value.trim()||'Outros'):catRaw;
     const fase=document.getElementById('e-fase').value;
     const nota=document.getElementById('e-nota').value.trim();
-    if(!desc||!val||!data){alert('Preenche todos os campos obrigatórios.');return;}
-    es[idx]={...e,desc,valor:val,data,cat,fase,nota};
+    if(!desc||!val||!data){alert('Preenche todos os campos.');return;}
+    updated={...e,desc,valor:val,data,cat,fase,nota};
   }
-
-  store(es);
+  entries[idx]=updated;
+  refreshTotal();
   closeSheetDirect();
+  await apiPost({action:'update',...updated});
   renderHist();
 }
 
-function deleteFromSheet() {
-  if(!confirm('Apagar este registo?')) return;
-  store(load().filter(x=>x.id!==editingId));
+async function deleteFromSheet() {
+  if(!confirm('Apagar este registo?'))return;
+  const id=editingId;
+  entries=entries.filter(x=>x.id!==id);
+  refreshTotal();
   closeSheetDirect();
+  await apiPost({action:'delete',id});
+  renderHist();
+}
+
+async function quickDel(id){
+  if(!confirm('Apagar este registo?'))return;
+  entries=entries.filter(e=>e.id!==id);
+  refreshTotal();
+  await apiPost({action:'delete',id});
   renderHist();
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDash() {
-  const es=load();
+  const es=entries;
   const total=es.reduce((a,e)=>a+e.valor,0);
   document.getElementById('h-total').textContent=total.toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('h-meta').textContent=es.length
-    ?`${es.length} registo${es.length!==1?'s':''} · desde ${fmtD(es[es.length-1].data)}`
+    ?`${es.length} registo${es.length!==1?'s':''} · desde ${fmtD(es[es.length-1]?.data)}`
     :'Sem registos ainda';
-
   const viagens=es.filter(e=>e.tipo==='Viagem');
-  const km=viagens.reduce((a,e)=>a+(e.km||0),0);
+  const km=viagens.reduce((a,e)=>a+(parseFloat(e.km)||0),0);
   document.getElementById('h-km').textContent=km.toLocaleString('pt-PT')+' km';
-
   const now=new Date();
   const mEs=es.filter(e=>{if(!e.data)return false;const d=new Date(e.data+'T12:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
   document.getElementById('h-month').textContent=fmtK(mEs.reduce((a,e)=>a+e.valor,0));
   document.getElementById('m-count').textContent=es.length;
   document.getElementById('m-desl').textContent=fmt(viagens.reduce((a,e)=>a+e.valor,0));
   document.getElementById('m-desl-km').textContent=km.toLocaleString('pt-PT')+' km';
-
   renderChart(es);
-
   // cats
   const catT={};
   es.forEach(e=>{catT[e.cat]=(catT[e.cat]||0)+e.valor;});
   const cEl=document.getElementById('d-cats');
-  if(!Object.keys(catT).length){cEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px">Sem dados</div>';}
-  else {
+  if(!Object.keys(catT).length){cEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px;padding:16px">Sem dados</div>';}
+  else{
     const max=Math.max(...Object.values(catT));
     cEl.innerHTML=Object.entries(catT).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
       const m=CAT_META[cat]||{icon:'📦',col:'#8E8E93'};
       const pct=total?+(val/total*100).toFixed(0):0;
       const bar=+(val/max*100).toFixed(0);
-      return `<div class="list-row">
-        <div class="row-icon" style="background:${m.col}18">${m.icon}</div>
-        <div class="row-body">
-          <div class="row-name">${cat.replace(/-/g,' ')}</div>
-          <div class="row-bar"><div class="row-bar-fill" style="width:${bar}%;background:${m.col}"></div></div>
-        </div>
-        <div class="row-right"><div class="row-amount">${fmt(val)}</div><div class="row-pct">${pct}%</div></div>
-      </div>`;
+      return `<div class="list-row"><div class="row-icon" style="background:${m.col}18">${m.icon}</div><div class="row-body"><div class="row-name">${cat.replace(/-/g,' ')}</div><div class="row-bar"><div class="row-bar-fill" style="width:${bar}%;background:${m.col}"></div></div></div><div class="row-right"><div class="row-amount">${fmt(val)}</div><div class="row-pct">${pct}%</div></div></div>`;
     }).join('');
   }
-
   // phases
   const phT={};
   es.forEach(e=>{if(e.fase)phT[e.fase]=(phT[e.fase]||0)+e.valor;});
   const pEl=document.getElementById('d-phases');
-  if(!Object.keys(phT).length){pEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px">Sem dados</div>';}
-  else {
+  if(!Object.keys(phT).length){pEl.innerHTML='<div class="list-row" style="color:var(--text3);font-size:13px;padding:16px">Sem dados</div>';}
+  else{
     pEl.innerHTML=Object.entries(phT).sort((a,b)=>b[1]-a[1]).map(([fase,val])=>{
       const pm=PHASE_META[fase]||{col:'#8E8E93'};
-      return `<div class="list-row">
-        <div class="row-icon" style="background:${pm.col}18;color:${pm.col};font-size:13px;font-weight:700">${fase.charAt(0)}</div>
-        <div class="row-body"><div class="row-name">${fase}</div></div>
-        <div class="row-amount">${fmt(val)}</div>
-      </div>`;
+      return `<div class="list-row"><div class="row-icon" style="background:${pm.col}18;color:${pm.col};font-size:13px;font-weight:700">${fase.charAt(0)}</div><div class="row-body"><div class="row-name">${fase}</div></div><div class="row-amount">${fmt(val)}</div></div>`;
     }).join('');
   }
-
   const rEl=document.getElementById('d-recent');
   const rec=es.slice(0,4);
-  rEl.innerHTML=rec.length
-    ?rec.map(e=>entryHTML(e,false)).join('')
-    :`<div class="empty"><div class="empty-e">📭</div><div class="empty-t">Sem registos</div><div class="empty-s">Vai a Registar para começar.</div></div>`;
+  rEl.innerHTML=rec.length?rec.map(e=>entryHTML(e,false)).join(''):`<div class="empty"><div class="empty-e">📭</div><div class="empty-t">Sem registos</div><div class="empty-s">Vai a Registar para começar.</div></div>`;
 }
 
 // ─── CHART ───────────────────────────────────────────────────
 function renderChart(es) {
   const monthly={};
-  es.forEach(e=>{
-    if(!e.data)return;
-    const d=new Date(e.data+'T12:00');
-    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    monthly[k]=(monthly[k]||0)+e.valor;
-  });
+  es.forEach(e=>{if(!e.data)return;const d=new Date(e.data+'T12:00');const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;monthly[k]=(monthly[k]||0)+e.valor;});
   const keys=Object.keys(monthly).sort();
   const labels=keys.map(k=>{const[y,m]=k.split('-');return new Date(+y,+m-1).toLocaleDateString('pt-PT',{month:'short'});});
   const vals=keys.map(k=>+monthly[k].toFixed(2));
   const ctx=document.getElementById('chart').getContext('2d');
   if(chartInst)chartInst.destroy();
-  if(!vals.length){
-    ctx.clearRect(0,0,400,200);
-    ctx.fillStyle='rgba(255,255,255,0.15)';
-    ctx.font='13px -apple-system';
-    ctx.textAlign='center';
-    ctx.fillText('Sem dados ainda',200,80);
-    return;
-  }
-  chartInst=new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{
-      data:vals,
-      borderColor:'rgba(255,255,255,0.9)',
-      backgroundColor:ctx2=>{const g=ctx2.chart.ctx.createLinearGradient(0,0,0,150);g.addColorStop(0,'rgba(255,255,255,0.1)');g.addColorStop(1,'rgba(255,255,255,0)');return g;},
-      borderWidth:1.5,pointBackgroundColor:'#fff',pointRadius:3,pointHoverRadius:5,tension:0.45,fill:true,
-    }]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(20,20,20,0.95)',borderColor:'rgba(255,255,255,0.08)',borderWidth:0.5,padding:10,cornerRadius:10,titleColor:'rgba(255,255,255,0.4)',bodyColor:'#fff',bodyFont:{size:14,weight:'600'},callbacks:{label:c=>fmt(c.raw)}}},
-      scales:{
-        x:{grid:{display:false},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10}},border:{display:false}},
-        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10},callback:v=>v+'€'},border:{display:false}},
-      }
-    }
-  });
+  if(!vals.length){ctx.clearRect(0,0,400,200);ctx.fillStyle='rgba(255,255,255,0.15)';ctx.font='13px -apple-system';ctx.textAlign='center';ctx.fillText('Sem dados ainda',200,80);return;}
+  chartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:vals,borderColor:'rgba(255,255,255,0.9)',backgroundColor:ctx2=>{const g=ctx2.chart.ctx.createLinearGradient(0,0,0,150);g.addColorStop(0,'rgba(255,255,255,0.1)');g.addColorStop(1,'rgba(255,255,255,0)');return g;},borderWidth:1.5,pointBackgroundColor:'#fff',pointRadius:3,pointHoverRadius:5,tension:0.45,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(20,20,20,0.95)',borderColor:'rgba(255,255,255,0.08)',borderWidth:0.5,padding:10,cornerRadius:10,titleColor:'rgba(255,255,255,0.4)',bodyColor:'#fff',bodyFont:{size:14,weight:'600'},callbacks:{label:c=>fmt(c.raw)}}},scales:{x:{grid:{display:false},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10}},border:{display:false}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.22)',font:{size:10},callback:v=>v+'€'},border:{display:false}}}}});
 }
 
 // ─── ENTRY HTML ──────────────────────────────────────────────
 function entryHTML(e, showActions=true) {
   const m=CAT_META[e.cat]||{icon:'📦',col:'#8E8E93'};
   const metaInfo=e.tipo==='Viagem'?`${e.km} km`:e.cat.replace(/-/g,' ');
-  const actions=showActions&&!viewMode
-    ?`<div class="entry-actions">
-        <button class="entry-btn edit" onclick="openEdit(${e.id})">✏️</button>
-        <button class="entry-btn del"  onclick="quickDel(${e.id})">−</button>
-      </div>`
-    :'';
-  return `<div class="entry" id="en-${e.id}">
-    <div class="entry-inner">
-      <div class="entry-icon" style="background:${m.col}18">${m.icon}</div>
-      <div class="entry-body">
-        <div class="entry-desc">${e.desc}</div>
-        <div class="entry-meta">
-          ${metaInfo}
-          ${e.fase?`<span class="phase-dot p-${e.fase}">${e.fase}</span>`:''}
-          ${e.nota?`· ${e.nota}`:''}
-        </div>
-      </div>
-      <div class="entry-right">
-        <div class="entry-amount">${fmt(e.valor)}</div>
-        <div class="entry-date">${fmtD(e.data)}</div>
-      </div>
-      ${actions}
-    </div>
-  </div>`;
-}
-
-function quickDel(id) {
-  if(!confirm('Apagar este registo?'))return;
-  store(load().filter(e=>e.id!==id));
-  renderHist();
+  const actions=showActions&&!viewMode?`<div class="entry-actions"><button class="entry-btn edit" onclick="openEdit(${e.id})">✏️</button><button class="entry-btn del" onclick="quickDel(${e.id})">−</button></div>`:'';
+  return `<div class="entry" id="en-${e.id}"><div class="entry-inner"><div class="entry-icon" style="background:${m.col}18">${m.icon}</div><div class="entry-body"><div class="entry-desc">${e.desc}</div><div class="entry-meta">${metaInfo}${e.fase?`<span class="phase-dot p-${e.fase}">${e.fase}</span>`:''}${e.nota?`· ${e.nota}`:''}</div></div><div class="entry-right"><div class="entry-amount">${fmt(e.valor)}</div><div class="entry-date">${fmtD(e.data)}</div></div>${actions}</div></div>`;
 }
 
 // ─── HISTÓRICO ───────────────────────────────────────────────
 function renderHist() {
-  const pillsEl=document.getElementById('pills');
-  pillsEl.innerHTML=FILTERS.map(f=>`<button class="pill${curFilter===f?' on':''}" onclick="setFilter('${f}')">${FILTER_LABELS[f]||f}</button>`).join('');
-  let es=load();
-  if(curFilter!=='Todos') {
-    es=es.filter(e=>{
-      if(curFilter==='Compras')return e.tipo==='Compra';
-      if(curFilter==='Viagens')return e.tipo==='Viagem';
-      return e.cat===curFilter||e.fase===curFilter;
-    });
-  }
-  document.getElementById('hist-list').innerHTML=es.length
-    ?es.map(e=>entryHTML(e,true)).join('')
-    :`<div class="empty"><div class="empty-e">🔍</div><div class="empty-t">Sem resultados</div><div class="empty-s">Tenta outro filtro.</div></div>`;
+  document.getElementById('pills').innerHTML=FILTERS.map(f=>`<button class="pill${curFilter===f?' on':''}" onclick="setFilter('${f}')">${FILTER_LABELS[f]||f}</button>`).join('');
+  let es=entries;
+  if(curFilter!=='Todos'){es=es.filter(e=>{if(curFilter==='Compras')return e.tipo==='Compra';if(curFilter==='Viagens')return e.tipo==='Viagem';return e.cat===curFilter||e.fase===curFilter;});}
+  document.getElementById('hist-list').innerHTML=es.length?es.map(e=>entryHTML(e,true)).join(''):`<div class="empty"><div class="empty-e">🔍</div><div class="empty-t">Sem resultados</div><div class="empty-s">Tenta outro filtro.</div></div>`;
 }
-
 function setFilter(f){curFilter=f;renderHist();}
 
 // ─── CONFIG ──────────────────────────────────────────────────
-function renderCfg() {
-  document.getElementById('vm-label').textContent=viewMode?'Ativado':'Desativado';
-}
+function renderCfg(){document.getElementById('vm-label').textContent=viewMode?'Ativado':'Desativado';}
 
-// ─── EXPORT CSV COM TOTAIS (iOS Safari compatible) ───────────
+// ─── EXPORT CSV ──────────────────────────────────────────────
 function exportCSV() {
-  const es=load();
+  const es=entries;
   if(!es.length){alert('Sem dados para exportar.');return;}
-
-  const h='Data,Tipo,Descrição,Categoria,Fase,Km,Valor (€),Nota\n';
-  const rows=es.map(e=>`${e.data},${e.tipo},"${e.desc}",${(e.cat||'').replace(/-/g,' ')},${e.fase||''},${e.km||''},${e.valor.toFixed(2)},"${e.nota||''}"`).join('\n');
-
+  const h='Data,Tipo,Descrição,Categoria,Fase,Km,Valor (EUR),Nota\n';
+  const rows=es.map(e=>`${e.data},${e.tipo},"${e.desc}",${(e.cat||'').replace(/-/g,' ')},${e.fase||''},${e.km||''},${parseFloat(e.valor).toFixed(2)},"${e.nota||''}"`).join('\n');
   const total=es.reduce((a,e)=>a+e.valor,0);
-  const catT={};
-  es.forEach(e=>{catT[e.cat]=(catT[e.cat]||0)+e.valor;});
-  const phT={};
-  es.forEach(e=>{if(e.fase)phT[e.fase]=(phT[e.fase]||0)+e.valor;});
-  const kmTotal=es.filter(e=>e.tipo==='Viagem').reduce((a,e)=>a+(e.km||0),0);
-
+  const catT={};es.forEach(e=>{catT[e.cat]=(catT[e.cat]||0)+e.valor;});
+  const phT={};es.forEach(e=>{if(e.fase)phT[e.fase]=(phT[e.fase]||0)+e.valor;});
+  const kmTotal=es.filter(e=>e.tipo==='Viagem').reduce((a,e)=>a+(parseFloat(e.km)||0),0);
   let totals='\n\nRESUMO\n';
-  totals+=`Total geral,${total.toFixed(2)} EUR\n`;
-  totals+=`Total km,${kmTotal} km\n`;
-  totals+=`Nr registos,${es.length}\n`;
-  totals+='\nPOR CATEGORIA\n';
-  Object.entries(catT).sort((a,b)=>b[1]-a[1]).forEach(([cat,val])=>{
-    totals+=`${cat.replace(/-/g,' ')},${val.toFixed(2)} EUR\n`;
-  });
+  totals+=`Total geral,${total.toFixed(2)} EUR\nTotal km,${kmTotal} km\nNr registos,${es.length}\n\nPOR CATEGORIA\n`;
+  Object.entries(catT).sort((a,b)=>b[1]-a[1]).forEach(([cat,val])=>{totals+=`${cat.replace(/-/g,' ')},${val.toFixed(2)} EUR\n`;});
   totals+='\nPOR FASE\n';
-  Object.entries(phT).sort((a,b)=>b[1]-a[1]).forEach(([fase,val])=>{
-    totals+=`${fase},${val.toFixed(2)} EUR\n`;
-  });
-
-  const csvContent = h + rows + totals;
-
-  // iOS Safari: open in new tab so user can share/save
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if(isIOS) {
-    // encode as data URI and open — user can then share from Safari
-    const encoded = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
-    const w = window.open(encoded, '_blank');
-    if(!w) {
-      // fallback: show in a modal to copy
-      showCSVModal(csvContent);
-    }
+  Object.entries(phT).sort((a,b)=>b[1]-a[1]).forEach(([fase,val])=>{totals+=`${fase},${val.toFixed(2)} EUR\n`;});
+  const csv=h+rows+totals;
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(isIOS){
+    const w=window.open('data:text/csv;charset=utf-8,'+encodeURIComponent(csv),'_blank');
+    if(!w) showCSVModal(csv);
   } else {
-    const blob = new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `braganca_${today()}.csv`;
-    a.click();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+    a.download=`braganca_${today()}.csv`;a.click();
   }
 }
-
-function showCSVModal(csv) {
-  // create overlay with textarea to copy
-  const overlay = document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;padding:20px;gap:12px;';
-  overlay.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:17px;font-weight:700;color:#fff">Copiar CSV</span>
-      <button onclick="this.closest('div[style]').remove()" style="background:#333;border:none;color:#fff;padding:6px 16px;border-radius:100px;font-size:14px;font-family:var(--font)">Fechar</button>
-    </div>
-    <p style="font-size:13px;color:rgba(255,255,255,0.5)">Selecciona tudo e copia para o Notes ou email.</p>
-    <textarea readonly style="flex:1;background:#1a1a1a;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:11px;padding:12px;font-family:monospace;resize:none;">${csv}</textarea>
-    <button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.querySelector('textarea').value).then(()=>alert('Copiado!'))" style="background:#fff;color:#000;border:none;padding:14px;border-radius:14px;font-size:16px;font-weight:700;font-family:var(--font)">Copiar tudo</button>
-  `;
-  document.body.appendChild(overlay);
-}
-
-function clearAll() {
-  if(!confirm('Apagar TODOS os registos? Irreversível.'))return;
-  localStorage.removeItem(KEY);
-  refreshTotal(); renderDash();
+function showCSVModal(csv){
+  const o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;padding:20px;gap:12px;';
+  o.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:17px;font-weight:700;color:#fff">Exportar CSV</span><button onclick="this.closest('div[style]').remove()" style="background:#333;border:none;color:#fff;padding:6px 16px;border-radius:100px;font-size:14px;">Fechar</button></div><p style="font-size:13px;color:rgba(255,255,255,0.5)">Carrega em "Copiar tudo" e cola no Notes ou email.</p><textarea readonly style="flex:1;background:#1a1a1a;border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:11px;padding:12px;font-family:monospace;resize:none;">${csv}</textarea><button onclick="navigator.clipboard.writeText(document.querySelector('textarea').value).then(()=>alert('Copiado!'))" style="background:#fff;color:#000;border:none;padding:14px;border-radius:14px;font-size:16px;font-weight:700;">Copiar tudo</button>`;
+  document.body.appendChild(o);
 }
 
 // ─── INIT ────────────────────────────────────────────────────
 document.getElementById('c-data').value=today();
 document.getElementById('v-data').value=today();
-applyView(); refreshTotal(); renderDash();
+applyView();
+apiGet().then(()=>{ refreshTotal(); renderDash(); });
 </script>
 </body>
 </html>
