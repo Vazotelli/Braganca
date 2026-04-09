@@ -168,6 +168,19 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
 .split-box.joao .split-box-val{color:var(--blue);}
 .split-box.joana2 .split-box-val{color:var(--purple);}
 .split-total{font-size:12px;color:var(--text3);text-align:right;margin-top:6px;}
+
+/* MANAGE CATS/PHASES */
+.mgmt-list{background:var(--bg2);border:0.5px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:8px;}
+.mgmt-row{display:flex;align-items:center;padding:12px 16px;border-bottom:0.5px solid var(--border2);gap:10px;}
+.mgmt-row:last-child{border-bottom:none;}
+.mgmt-name{flex:1;font-size:15px;}
+.mgmt-del{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0 0 0 8px;transition:color 0.15s;line-height:1;flex-shrink:0;}
+.mgmt-del:active{color:var(--red);}
+.mgmt-add{display:flex;gap:8px;margin-bottom:16px;}
+.mgmt-add input{flex:1;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:10px 14px;font-family:var(--font);font-size:15px;color:var(--text);outline:none;}
+.mgmt-add input:focus{border-color:var(--blue);}
+.mgmt-add input::placeholder{color:var(--text3);}
+.mgmt-add button{background:var(--blue);border:none;border-radius:12px;padding:10px 16px;font-family:var(--font);font-size:14px;font-weight:600;color:#fff;cursor:pointer;white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -220,23 +233,14 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
       <div class="f-row">
         <div class="f-label">Categoria</div>
         <select class="f-select" id="c-cat" onchange="checkOutro('c-cat','outro-row')">
-          <option value="Materiais">Materiais</option>
-          <option value="Mão-de-obra">Mão de obra</option>
-          <option value="Especialidades">Especialidades</option>
-          <option value="Arquiteto">Arquiteto</option>
-          <option value="Taxas-e-Licenças">Taxas e Licenças</option>
-          <option value="Equipamentos">Equipamentos</option>
-          <option value="Outros">Outros…</option>
+<!-- cat-options -->
         </select><span class="f-chevron">›</span>
       </div>
       <div class="f-row outro-field" id="outro-row"><div class="f-label">Especificar</div><input class="f-input" id="c-outro" type="text" placeholder="Qual categoria?"/></div>
       <div class="f-row">
         <div class="f-label">Fase</div>
         <select class="f-select" id="c-fase">
-          <option value="Projeto">Projeto</option>
-          <option value="Licenciamento">Licenciamento</option>
-          <option value="Obra">Obra</option>
-          <option value="Venda">Venda</option>
+<!-- fase-options -->
         </select><span class="f-chevron">›</span>
       </div>
       <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="c-nota" type="text" placeholder="Opcional"/></div>
@@ -250,10 +254,7 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
       <div class="f-row">
         <div class="f-label">Fase</div>
         <select class="f-select" id="v-fase">
-          <option value="Projeto">Projeto</option>
-          <option value="Licenciamento">Licenciamento</option>
-          <option value="Obra">Obra</option>
-          <option value="Venda">Venda</option>
+<!-- fase-options -->
         </select><span class="f-chevron">›</span>
       </div>
       <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="v-nota" type="text" placeholder="Opcional"/></div>
@@ -288,6 +289,20 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
     <div class="setting-row"><span class="s-key">Partilha (só visualização)</span><span class="s-val hi" id="vm-label">Desativado</span></div>
   </div>
   <button class="btn btn-ghost" onclick="toggleView()">Ativar / Desativar modo leitura</button>
+  <div class="s-label">Categorias</div>
+  <div class="mgmt-add">
+    <input id="new-cat-input" type="text" placeholder="Nova categoria..."/>
+    <button onclick="addCat()">Adicionar</button>
+  </div>
+  <div class="mgmt-list" id="cat-mgmt-list"></div>
+
+  <div class="s-label">Fases</div>
+  <div class="mgmt-add">
+    <input id="new-fase-input" type="text" placeholder="Nova fase..."/>
+    <button onclick="addFase()">Adicionar</button>
+  </div>
+  <div class="mgmt-list" id="fase-mgmt-list"></div>
+
   <div class="s-label">Dados</div>
   <button class="btn btn-ghost" onclick="exportCSV()">Exportar CSV com totais</button>
   <button class="btn btn-danger" onclick="clearAll()">Apagar todos os registos</button>
@@ -351,23 +366,14 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
           <div class="f-row">
             <div class="f-label">Categoria</div>
             <select class="f-select" id="e-cat" onchange="checkOutro('e-cat','e-outro-row')">
-              <option value="Materiais">Materiais</option>
-              <option value="Mão-de-obra">Mão de obra</option>
-              <option value="Especialidades">Especialidades</option>
-              <option value="Arquiteto">Arquiteto</option>
-              <option value="Taxas-e-Licenças">Taxas e Licenças</option>
-              <option value="Equipamentos">Equipamentos</option>
-              <option value="Outros">Outros…</option>
+<!-- cat-options -->
             </select><span class="f-chevron">›</span>
           </div>
           <div class="f-row outro-field" id="e-outro-row"><div class="f-label">Especificar</div><input class="f-input" id="e-outro" type="text" placeholder="Qual categoria?"/></div>
           <div class="f-row">
             <div class="f-label">Fase</div>
             <select class="f-select" id="e-fase">
-              <option value="Projeto">Projeto</option>
-              <option value="Licenciamento">Licenciamento</option>
-              <option value="Obra">Obra</option>
-              <option value="Venda">Venda</option>
+<!-- fase-options -->
             </select><span class="f-chevron">›</span>
           </div>
           <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="e-nota" type="text" placeholder="Opcional"/></div>
@@ -381,10 +387,7 @@ body{font-family:var(--font);color:var(--text);max-width:430px;margin:0 auto;min
           <div class="f-row">
             <div class="f-label">Fase</div>
             <select class="f-select" id="ev-fase">
-              <option value="Projeto">Projeto</option>
-              <option value="Licenciamento">Licenciamento</option>
-              <option value="Obra">Obra</option>
-              <option value="Venda">Venda</option>
+<!-- fase-options -->
             </select><span class="f-chevron">›</span>
           </div>
           <div class="f-row"><div class="f-label">Nota</div><input class="f-input" id="ev-nota" type="text" placeholder="Opcional"/></div>
@@ -428,8 +431,15 @@ const PHASE_META = {
   'Projeto':{col:'#0A84FF'},'Licenciamento':{col:'#BF5AF2'},
   'Obra':{col:'#FF9F0A'},'Venda':{col:'#30D158'},
 };
-const KNOWN_CATS = ['Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros'];
-const FILTERS = ['Todos','Compras','Viagens','Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros','Projeto','Licenciamento','Obra','Venda'];
+const DEFAULT_CATS = ['Materiais','Mão-de-obra','Especialidades','Arquiteto','Taxas-e-Licenças','Equipamentos','Outros'];
+const DEFAULT_FASES = ['Projeto','Licenciamento','Obra','Venda'];
+const CATS_KEY = 'brg_cats';
+const FASES_KEY = 'brg_fases';
+function getCats() { try { return JSON.parse(localStorage.getItem(CATS_KEY)) || DEFAULT_CATS.slice(); } catch(e){ return DEFAULT_CATS.slice(); } }
+function getFases() { try { return JSON.parse(localStorage.getItem(FASES_KEY)) || DEFAULT_FASES.slice(); } catch(e){ return DEFAULT_FASES.slice(); } }
+function saveCats(a){ localStorage.setItem(CATS_KEY, JSON.stringify(a)); }
+function saveFases(a){ localStorage.setItem(FASES_KEY, JSON.stringify(a)); }
+function getFilters(){ return ['Todos','Compras','Viagens'].concat(getCats()).concat(getFases()); }
 const FILTER_LABELS = {'Taxas-e-Licenças':'Taxas / Licenças'};
 
 let curType   = 'compra';
@@ -654,7 +664,8 @@ function guardar() {
 
   // 4. Reset form
   ['c-desc','c-val','c-outro','c-nota','v-desc','v-km','v-nota'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('c-data').value=today();
+  populateSelects();
+document.getElementById('c-data').value=today();
   document.getElementById('v-data').value=today();
   document.getElementById('outro-row').style.display='none';
   document.getElementById('km-pill').style.display='none';
@@ -800,7 +811,7 @@ function entryHTML(e,showActions=true) {
 }
 
 function renderHist() {
-  document.getElementById('pills').innerHTML=FILTERS.map(f=>`<button class="pill${curFilter===f?' on':''}" onclick="setFilter('${f}')">${FILTER_LABELS[f]||f}</button>`).join('');
+  document.getElementById('pills').innerHTML=getFilters().map(function(f){return '<button class="pill'+(curFilter===f?' on':'')+('" onclick="setFilter(\''+f+'\')">'+(FILTER_LABELS[f]||f)+'</button>');}).join('');
   let es=lsGet();
   if(curFilter!=='Todos'){es=es.filter(e=>{if(curFilter==='Compras')return e.tipo==='Compra';if(curFilter==='Viagens')return e.tipo==='Viagem';return e.cat===curFilter||e.fase===curFilter;});}
   document.getElementById('hist-list').innerHTML=es.length?es.map(e=>entryHTML(e,true)).join(''):`<div class="empty"><div class="empty-e">🔍</div><div class="empty-t">Sem resultados</div><div class="empty-s">Tenta outro filtro.</div></div>`;
@@ -810,6 +821,7 @@ function setFilter(f){curFilter=f;renderHist();}
 function renderCfg() {
   document.getElementById('vm-label').textContent=viewMode?'Ativado':'Desativado';
   updateSyncDot();
+  renderCfgLists();
 }
 
 function exportCSV() {
@@ -845,6 +857,91 @@ function clearAll(){
   showToast('Dados locais apagados');
 }
 
+
+// ─── DYNAMIC SELECTS ─────────────────────────────────────────
+function populateSelects() {
+  var cats = getCats();
+  var fases = getFases();
+  var catHtml = cats.map(function(c){ return '<option value="'+c+'">'+c.replace(/-/g,' ')+'</option>'; }).join('') + '<option value="Outros">Outros...</option>';
+  var faseHtml = fases.map(function(f){ return '<option value="'+f+'">'+f+'</option>'; }).join('');
+  ['c-cat','e-cat'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.innerHTML=catHtml;
+  });
+  ['c-fase','v-fase','e-fase','ev-fase'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.innerHTML=faseHtml;
+  });
+}
+
+// ─── MANAGE CATS/PHASES ──────────────────────────────────────
+function renderCfgLists() {
+  var cats = getCats();
+  var fases = getFases();
+  var catEl = document.getElementById('cat-mgmt-list');
+  var faseEl = document.getElementById('fase-mgmt-list');
+  if(!catEl||!faseEl) return;
+  catEl.innerHTML = cats.map(function(c,i){
+    return '<div class="mgmt-row"><span class="mgmt-name">'+c.replace(/-/g,' ')+'</span>'+
+      (DEFAULT_CATS.indexOf(c)===-1 ? '<button class="mgmt-del" onclick="delCat('+i+')">−</button>' : '<span style="font-size:11px;color:var(--text3);padding-left:8px">base</span>')+
+    '</div>';
+  }).join('');
+  faseEl.innerHTML = fases.map(function(f,i){
+    return '<div class="mgmt-row"><span class="mgmt-name">'+f+'</span>'+
+      (DEFAULT_FASES.indexOf(f)===-1 ? '<button class="mgmt-del" onclick="delFase('+i+')">−</button>' : '<span style="font-size:11px;color:var(--text3);padding-left:8px">base</span>')+
+    '</div>';
+  }).join('');
+}
+
+function addCat() {
+  var input = document.getElementById('new-cat-input');
+  var val = input.value.trim();
+  if(!val){ showToast('Escreve o nome da categoria'); return; }
+  var cats = getCats();
+  var key = val.replace(/\s+/g,'-');
+  if(cats.indexOf(key)!==-1){ showToast('Categoria já existe'); return; }
+  cats.push(key);
+  saveCats(cats);
+  input.value='';
+  populateSelects();
+  renderCfgLists();
+  showToast('Categoria adicionada');
+}
+
+function delCat(i) {
+  var cats = getCats();
+  if(DEFAULT_CATS.indexOf(cats[i])!==-1){ showToast('Não podes apagar categorias base'); return; }
+  if(!confirm('Apagar categoria "'+cats[i].replace(/-/g,' ')+'"?')) return;
+  cats.splice(i,1);
+  saveCats(cats);
+  populateSelects();
+  renderCfgLists();
+  showToast('Categoria removida');
+}
+
+function addFase() {
+  var input = document.getElementById('new-fase-input');
+  var val = input.value.trim();
+  if(!val){ showToast('Escreve o nome da fase'); return; }
+  var fases = getFases();
+  if(fases.indexOf(val)!==-1){ showToast('Fase já existe'); return; }
+  fases.push(val);
+  saveFases(fases);
+  input.value='';
+  populateSelects();
+  renderCfgLists();
+  showToast('Fase adicionada');
+}
+
+function delFase(i) {
+  var fases = getFases();
+  if(DEFAULT_FASES.indexOf(fases[i])!==-1){ showToast('Não podes apagar fases base'); return; }
+  if(!confirm('Apagar fase "'+fases[i]+'"?')) return;
+  fases.splice(i,1);
+  saveFases(fases);
+  populateSelects();
+  renderCfgLists();
+  showToast('Fase removida');
+}
+
 // ─── INVESTORS ───────────────────────────────────────────────
 function renderInv() {
   var CAP = 20000;
@@ -870,6 +967,8 @@ function renderInv() {
 
 
 // ─── INIT ───────────────────────────────────────────────────
+// populate dynamic selects on load
+populateSelects();
 document.getElementById('c-data').value=today();
 document.getElementById('v-data').value=today();
 applyView();
