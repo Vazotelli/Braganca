@@ -455,3 +455,12 @@ html, body {
 .acao-tag--vermelho { background: var(--cor-perigo-fundo); color: var(--cor-perigo); }
 .acao-tag--ambar { background: var(--cor-aviso-fundo); color: var(--cor-aviso); }
 .acao__del { flex-shrink: 0; width: 40px; height: 40px; border: none; border-radius: 8px; background: var(--cor-perigo-fundo); color: var(--cor-perigo); font-size: 1rem; font-weight: 800; cursor: pointer; }
+
+/* ==================================================================== Painel */
+.kpi-total { display: flex; flex-direction: column; gap: 6px; }
+.kpi-total__val { font-size: 2rem; font-weight: 800; color: var(--cor-primaria); }
+.kpi-total .barra { margin: 6px 0 2px; }
+.painel-linha { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--cor-linha); border-radius: 10px; background: var(--cor-fundo); padding: 12px; margin-bottom: 8px; cursor: pointer; }
+.painel-linha.is-urgente { border-color: var(--cor-perigo); background: var(--cor-perigo-fundo); }
+.painel-linha__t { font-weight: 700; }
+.painel-linha__s { font-size: 0.82rem; color: var(--cor-texto-suave); margin-top: 2px; }
