@@ -8,6 +8,7 @@ import { render as renderCustos } from "./custos.js";
 import { render as renderVenda } from "./venda.js";
 import { render as renderPagamentos } from "./pagamentos.js";
 import { render as renderCronograma } from "./cronograma.js";
+import { render as renderPlantas, abrir as abrirPlanta } from "./plantas.js";
 
 // Definicao dos 5 ecras. `render` sera' substituido pelos modulos reais
 // (custos.js, pagamentos.js, ...) a medida que os passos avancam.
@@ -30,7 +31,7 @@ const ECRAS = {
   },
   plantas: {
     titulo: "Plantas",
-    render: (container) => placeholder(container, "▦", "Plantas"),
+    render: renderPlantas,
   },
   venda: {
     titulo: "Venda",
@@ -80,6 +81,10 @@ function ligarNavegacao() {
     if (botao) mostrarEcra(botao.dataset.ecra);
   });
 }
+
+// Navegacao acessivel a outros modulos (ex.: chips do Plano abrem uma planta)
+window.__ir = mostrarEcra;
+window.__abrirPlanta = (id) => { mostrarEcra("plantas"); setTimeout(() => abrirPlanta(id), 60); };
 
 // Arranque.
 function arrancar() {
