@@ -77,9 +77,12 @@ def ler_materiais(wb):
     for fila in ws.iter_rows(min_row=3, values_only=True):
         adj, esp, artigo, qtd, un, pu, total, iva, obs = (list(fila) + [None] * 9)[:9]
         c_artigo = texto(artigo)
-        # cabecalho de capitulo: "── NOME ──"
-        if c_artigo.startswith("──"):
-            capitulo = c_artigo.strip("─ ").strip()
+        c_col_a = texto(adj)
+        # cabecalho de capitulo: "── NOME ──" (vem na coluna A da folha)
+        marcador = (c_col_a if c_col_a.startswith("──")
+                    else c_artigo if c_artigo.startswith("──") else None)
+        if marcador:
+            capitulo = marcador.strip("─ ").strip()
             continue
         # linhas de total no fim da folha
         if c_artigo.upper().startswith("TOTAL"):
@@ -99,9 +102,10 @@ def ler_materiais(wb):
             "artigo": c_artigo,
             "qtd": num(qtd),
             "unidade": texto(un),
-            "precoUnit": num(pu),
+            "precoUnit": round(num(pu), 5) if num(pu) is not None else None,
             "total": g_total,
             "iva": g_iva,
+            "ivaAtivo": g_iva is not None,   # IVA aplicado nesta linha (como no Excel)
             "taxaIva": taxa,
             "adjudicado": adj is True,
             "fornecedor": None,
@@ -135,6 +139,7 @@ def placeholders_gesso_tetos(materiais):
             "precoUnit": None,
             "total": None,               # nao conta para estimado/gasto
             "iva": None,
+            "ivaAtivo": False,
             "taxaIva": IVA_MATERIAL_PADRAO,
             "adjudicado": False,
             "fornecedor": None,
@@ -155,7 +160,7 @@ def massas_cimento(wb):
             pu = num(vals[10])  # coluna K = P.U.
             linhas.append({
                 "id": f"mat_massa_{len(linhas)+1}",
-                "capitulo": "Alvenaria",
+                "capitulo": "ALVENARIA",
                 "especialidade": "Alvenaria",
                 "artigo": "Massas de cimento",
                 "qtd": None,                 # era '?' no Excel
@@ -163,6 +168,7 @@ def massas_cimento(wb):
                 "precoUnit": pu,
                 "total": None,               # #VALUE! -> nao conta
                 "iva": None,
+                "ivaAtivo": False,
                 "taxaIva": IVA_MATERIAL_PADRAO,
                 "adjudicado": False,
                 "fornecedor": "Leroy Merlin",

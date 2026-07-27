@@ -4,6 +4,8 @@
 // seguintes; por agora mostram um placeholder "em construcao".
 // =========================================================================
 
+import { render as renderCustos } from "./custos.js";
+
 // Definicao dos 5 ecras. `render` sera' substituido pelos modulos reais
 // (custos.js, pagamentos.js, ...) a medida que os passos avancam.
 const ECRAS = {
@@ -13,7 +15,7 @@ const ECRAS = {
   },
   custos: {
     titulo: "Custos",
-    render: (container) => placeholder(container, "€", "Custos"),
+    render: renderCustos,
   },
   pagamentos: {
     titulo: "Pagamentos",

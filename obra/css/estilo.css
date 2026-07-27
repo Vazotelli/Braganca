@@ -125,3 +125,133 @@ html, body {
   padding: 48px 16px;
 }
 .placeholder__icone { font-size: 3rem; display: block; margin-bottom: 8px; }
+
+/* ------------------------------------------------------------- sub-separadores */
+.subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.subtabs__b {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--cor-linha);
+  border-radius: var(--raio);
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.subtabs__b.is-ativo {
+  background: var(--cor-primaria);
+  color: var(--cor-primaria-txt);
+  border-color: var(--cor-primaria);
+}
+
+/* --------------------------------------------------------------------- resumo */
+.resumo { display: flex; gap: 10px; margin-bottom: 10px; }
+.resumo__cartao {
+  flex: 1;
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-linha);
+  border-radius: var(--raio);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.resumo__rot { font-size: 0.78rem; color: var(--cor-texto-suave); }
+.resumo__val { font-size: 1.5rem; font-weight: 800; }
+.resumo__sub { font-size: 0.78rem; color: var(--cor-texto-suave); }
+
+.barra { height: 8px; background: var(--cor-linha); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+.barra__cheio { height: 100%; background: var(--cor-destaque); }
+
+/* -------------------------------------------------------------------- filtros */
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.filtros__sel {
+  flex: 1 1 30%;
+  min-height: 40px;
+  border: 1px solid var(--cor-linha);
+  border-radius: 8px;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font: inherit;
+  padding: 0 8px;
+}
+
+/* --------------------------------------------------------- grupos / materiais */
+.grupo { margin-bottom: 16px; }
+.grupo__cab {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  color: var(--cor-primaria);
+  padding: 6px 4px;
+  border-bottom: 2px solid var(--cor-primaria);
+  margin-bottom: 6px;
+}
+
+.mat {
+  border: 1px solid var(--cor-linha);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--cor-fundo);
+  overflow: hidden;
+}
+.mat.is-aberto { border-color: var(--cor-primaria); }
+.mat__topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.mat__adj { display: flex; align-items: center; }
+.mat__adj input { width: 26px; height: 26px; }
+.mat__info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mat__artigo { font-weight: 600; }
+.mat__meta { font-size: 0.82rem; color: var(--cor-texto-suave); }
+.mat__valores { text-align: right; display: flex; flex-direction: column; }
+.mat__valores strong { font-size: 1.05rem; }
+.mat__siva { font-size: 0.75rem; color: var(--cor-texto-suave); }
+
+.badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+.badge--aviso { background: var(--cor-aviso-fundo); color: var(--cor-aviso); }
+
+/* ---------------------------------------------------------------- editor linha */
+.editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--cor-linha);
+  background: var(--cor-superficie);
+}
+.campo { flex: 1 1 44%; display: flex; flex-direction: column; gap: 3px; }
+.campo--largo { flex-basis: 100%; }
+.campo span { font-size: 0.75rem; color: var(--cor-texto-suave); }
+.campo input, .campo select {
+  min-height: 42px;
+  border: 1px solid var(--cor-linha);
+  border-radius: 8px;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font: inherit;
+  padding: 0 10px;
+}
+
+/* --------------------------------------------------------------------- medicoes */
+.nota, .vazio { color: var(--cor-texto-suave); font-size: 0.9rem; margin: 4px 0 14px; }
+.vazio { text-align: center; padding: 32px 0; }
+.med__cab { display: flex; justify-content: space-between; font-size: 1.05rem; }
+.med__meta { color: var(--cor-texto-suave); font-size: 0.9rem; margin-top: 2px; }
+.med__notas { margin-top: 8px; font-size: 0.85rem; border-top: 1px dashed var(--cor-linha); padding-top: 8px; }
