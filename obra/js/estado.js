@@ -15,13 +15,16 @@ const ouvintes = new Set();
 let timer = null;
 
 function carregar() {
+  let e = clone(SEED);
   try {
     const bruto = localStorage.getItem(CHAVE);
-    if (bruto) return JSON.parse(bruto);
-  } catch (e) {
-    console.warn("estado guardado ilegível, uso o seed:", e);
+    if (bruto) e = JSON.parse(bruto);
+  } catch (err) {
+    console.warn("estado guardado ilegível, uso o seed:", err);
   }
-  return clone(SEED);
+  // migracao leve: garantir id em cada medicao (o seed antigo nao tinha)
+  (e.medicoes || []).forEach((m, i) => { if (!m.id) m.id = "med_" + i; });
+  return e;
 }
 
 function guardarJa() {
@@ -60,6 +63,58 @@ export function reporSeed() {
   estado = clone(SEED);
   guardarJa();
   notificar();
+}
+
+// --- adicionar / eliminar / inserir (com suporte a Anular) ---
+let contadorNovo = 0;
+function novoId(pref) { return `${pref}_${Date.now().toString(36)}_${contadorNovo++}`; }
+
+export function adicionarMaterial(capitulo = "") {
+  const m = {
+    id: novoId("mat"), capitulo, especialidade: capitulo, artigo: "",
+    qtd: null, unidade: "", precoUnit: null, total: null, iva: null,
+    ivaAtivo: false, taxaIva: 0.23, adjudicado: false,
+    fornecedor: null, observacoes: "", estado: "ok",
+  };
+  estado.materiais.push(m);
+  agendarGuardar(); notificar();
+  return m.id;
+}
+
+export function eliminarMaterial(id) {
+  const i = estado.materiais.findIndex((x) => x.id === id);
+  if (i < 0) return null;
+  const [item] = estado.materiais.splice(i, 1);
+  agendarGuardar(); notificar();
+  return { item, indice: i };
+}
+
+export function inserirMaterial(item, indice) {
+  estado.materiais.splice(Math.min(indice, estado.materiais.length), 0, item);
+  agendarGuardar(); notificar();
+}
+
+export function adicionarMedicao() {
+  const md = {
+    id: novoId("med"), capitulo: "", quantidade: null, unidade: "",
+    precoUnit: null, notas: "", estado: "ok",
+  };
+  estado.medicoes.push(md);
+  agendarGuardar(); notificar();
+  return md.id;
+}
+
+export function eliminarMedicao(id) {
+  const i = estado.medicoes.findIndex((x) => x.id === id);
+  if (i < 0) return null;
+  const [item] = estado.medicoes.splice(i, 1);
+  agendarGuardar(); notificar();
+  return { item, indice: i };
+}
+
+export function inserirMedicao(item, indice) {
+  estado.medicoes.splice(Math.min(indice, estado.medicoes.length), 0, item);
+  agendarGuardar(); notificar();
 }
 
 // tamanho aproximado ocupado em localStorage (KB)

@@ -1,17 +1,22 @@
 // =========================================================================
-// custos.js — ecra Custos: vista Materiais (editavel) + vista Medições (leitura).
+// custos.js — ecra Custos: coordena os sub-separadores e desenha a vista
+// Materiais (adicionar / editar / eliminar). A vista Medições vive em medicoes.js.
 // Regra critica: so linhas com adjudicado=true contam para o GASTO real.
 // =========================================================================
 
-import { obter, alterar, recalcularLinha, ivaDe, totaisMateriais } from "./estado.js";
+import {
+  obter, alterar, recalcularLinha, ivaDe, totaisMateriais,
+  adicionarMaterial, eliminarMaterial, inserirMaterial,
+} from "./estado.js";
 import { euros, numero, esc } from "./utils.js";
+import { mostrarUndo } from "./ui.js";
+import { render as renderMedicoes } from "./medicoes.js";
 
-// estado local do ecra (persiste enquanto a app esta aberta)
 let vista = "materiais";           // "materiais" | "medicoes"
-let filtroCapitulo = "";           // "" = todos
+let filtroCapitulo = "";
 let filtroAdjudicado = "todos";    // "todos" | "sim" | "nao"
 let filtroEstado = "todos";        // "todos" | "por_orcamentar" | "por_decidir"
-let expandidoId = null;            // id do material com editor aberto
+let expandidoId = null;
 let contentorRef = null;
 
 const TAXAS = [0.06, 0.13, 0.23];
@@ -38,7 +43,7 @@ function desenhar() {
 
   const corpo = c.querySelector("#custos-corpo");
   if (vista === "materiais") desenharMateriais(corpo);
-  else desenharMedicoes(corpo);
+  else renderMedicoes(corpo);
 }
 
 // ---------------------------------------------------------------- Materiais
@@ -78,11 +83,20 @@ function desenharMateriais(corpo) {
       </select>
     </div>
 
+    <button id="add-mat" class="btn-add">+ Adicionar material</button>
+    <datalist id="lista-caps">${capitulos.map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
     <div id="lista-mat"></div>`;
 
   corpo.querySelector("#f-cap").addEventListener("change", (e) => { filtroCapitulo = e.target.value; desenhar(); });
   corpo.querySelector("#f-adj").addEventListener("change", (e) => { filtroAdjudicado = e.target.value; desenhar(); });
   corpo.querySelector("#f-est").addEventListener("change", (e) => { filtroEstado = e.target.value; desenhar(); });
+  corpo.querySelector("#add-mat").addEventListener("click", () => {
+    const id = adicionarMaterial(filtroCapitulo || "");
+    filtroAdjudicado = "todos"; filtroEstado = "todos";
+    expandidoId = id;
+    desenhar();
+    document.querySelector(`.mat[data-id="${id}"]`)?.scrollIntoView({ block: "center" });
+  });
 
   desenharLista(corpo.querySelector("#lista-mat"));
 }
@@ -101,7 +115,6 @@ function desenharLista(alvo) {
   const mats = materiaisFiltrados();
   if (!mats.length) { alvo.innerHTML = `<p class="vazio">Sem materiais com estes filtros.</p>`; return; }
 
-  // agrupar por capitulo, preservando a ordem de aparecimento
   const grupos = [];
   const idx = {};
   for (const m of mats) {
@@ -111,7 +124,7 @@ function desenharLista(alvo) {
   }
 
   alvo.innerHTML = grupos.map((g) => {
-    const subEst = g.itens.reduce((s, m) => s + ((m.total > 0 ? m.total : 0) + (m.total > 0 ? ivaDe(m) : 0)), 0);
+    const subEst = g.itens.reduce((s, m) => s + (m.total > 0 ? m.total + ivaDe(m) : 0), 0);
     return `
       <div class="grupo">
         <div class="grupo__cab"><span>${esc(g.capitulo)}</span><span>${euros(subEst)}</span></div>
@@ -133,8 +146,8 @@ function desenharLista(alvo) {
 function linhaMaterial(m) {
   const cIva = (typeof m.total === "number") ? m.total + ivaDe(m) : null;
   const aberto = expandidoId === m.id;
-  const badge = m.estado === "por_orcamentar" ? `<span class="badge badge--aviso">por orçamentar</span>`
-    : m.estado === "por_decidir" ? `<span class="badge badge--aviso">por decidir</span>` : "";
+  const badge = (m.estado === "por_orcamentar") ? `<span class="badge badge--aviso">por orçamentar</span>`
+    : (m.estado === "por_decidir") ? `<span class="badge badge--aviso">por decidir</span>` : "";
   const qtdTxt = (m.qtd === null || m.qtd === undefined) ? "?" : numero(m.qtd);
   return `
     <div class="mat ${aberto ? "is-aberto" : ""}" data-id="${m.id}">
@@ -143,7 +156,7 @@ function linhaMaterial(m) {
           <input type="checkbox" data-acao="adj" ${m.adjudicado ? "checked" : ""}>
         </label>
         <div class="mat__info">
-          <span class="mat__artigo">${esc(m.artigo)} ${badge}</span>
+          <span class="mat__artigo">${esc(m.artigo) || "<em>novo material</em>"} ${badge}</span>
           <span class="mat__meta">${qtdTxt} ${esc(m.unidade || "")} × ${m.precoUnit != null ? euros(m.precoUnit) : "—"}</span>
         </div>
         <div class="mat__valores">
@@ -158,6 +171,12 @@ function linhaMaterial(m) {
 function editor(m) {
   return `
     <div class="editor">
+      <label class="campo campo--largo"><span>Artigo</span>
+        <input type="text" data-acao="artigo" value="${esc(m.artigo ?? "")}"></label>
+      <label class="campo"><span>Capítulo</span>
+        <input type="text" list="lista-caps" data-acao="capitulo" value="${esc(m.capitulo ?? "")}"></label>
+      <label class="campo"><span>Unidade</span>
+        <input type="text" data-acao="unidade" value="${esc(m.unidade ?? "")}"></label>
       <label class="campo"><span>Quantidade</span>
         <input type="number" inputmode="decimal" step="any" data-acao="qtd" value="${vin(m.qtd)}"></label>
       <label class="campo"><span>Preço unit. (s/IVA)</span>
@@ -171,15 +190,16 @@ function editor(m) {
         <input type="text" data-acao="fornecedor" value="${esc(m.fornecedor ?? "")}"></label>
       <label class="campo campo--largo"><span>Observações</span>
         <input type="text" data-acao="obs" value="${esc(m.observacoes ?? "")}"></label>
+      <button class="btn-eliminar" data-acao="eliminar">Eliminar material</button>
     </div>`;
 }
 
 function ligarEdicao(alvo) {
+  // edicoes (change em inputs/selects)
   alvo.addEventListener("change", (ev) => {
     const el = ev.target.closest("[data-acao]");
-    if (!el) return;
-    const cartao = ev.target.closest(".mat");
-    const id = cartao.dataset.id;
+    if (!el || el.tagName === "BUTTON") return;
+    const id = ev.target.closest(".mat").dataset.id;
     const acao = el.dataset.acao;
     alterar((est) => {
       const m = est.materiais.find((x) => x.id === id);
@@ -187,38 +207,29 @@ function ligarEdicao(alvo) {
       if (acao === "adj") m.adjudicado = el.checked;
       else if (acao === "qtd") m.qtd = el.value === "" ? null : parseFloat(el.value);
       else if (acao === "pu") m.precoUnit = el.value === "" ? null : parseFloat(el.value);
-      else if (acao === "taxa") {
-        const tx = parseFloat(el.value);
-        m.ivaAtivo = tx > 0;
-        if (tx > 0) m.taxaIva = tx;
-      } else if (acao === "fornecedor") m.fornecedor = el.value;
+      else if (acao === "taxa") { const tx = parseFloat(el.value); m.ivaAtivo = tx > 0; if (tx > 0) m.taxaIva = tx; }
+      else if (acao === "artigo") m.artigo = el.value;
+      else if (acao === "capitulo") { m.capitulo = el.value; if (!m.especialidade) m.especialidade = el.value; }
+      else if (acao === "unidade") m.unidade = el.value;
+      else if (acao === "fornecedor") m.fornecedor = el.value;
       else if (acao === "obs") m.observacoes = el.value;
-      if (acao !== "fornecedor" && acao !== "obs") recalcularLinha(m);
+      if (["qtd", "pu", "taxa"].includes(acao)) recalcularLinha(m);
     });
     desenhar();
   });
-}
-
-// ---------------------------------------------------------------- Medições
-function desenharMedicoes(corpo) {
-  const meds = obter().medicoes;
-  corpo.innerHTML = `
-    <p class="nota">Totais por capítulo (só leitura). O cálculo detalhado fica no Excel.</p>
-    ${meds.map((md) => {
-      const valor = (md.quantidade != null && md.precoUnit != null)
-        ? euros(md.quantidade * md.precoUnit) : "—";
-      const badge = md.estado === "por_decidir" ? `<span class="badge badge--aviso">por decidir</span>` : "";
-      return `
-        <div class="cartao med">
-          <div class="med__cab"><strong>${esc(md.capitulo)} ${badge}</strong><span>${valor}</span></div>
-          <div class="med__meta">${numero(md.quantidade)} ${esc(md.unidade)}${md.precoUnit != null ? " × " + euros(md.precoUnit) : ""}</div>
-          ${md.notas ? `<div class="med__notas">${esc(md.notas)}</div>` : ""}
-        </div>`;
-    }).join("")}`;
+  // eliminar (click no botao)
+  alvo.addEventListener("click", (ev) => {
+    const btn = ev.target.closest('[data-acao="eliminar"]');
+    if (!btn) return;
+    const id = ev.target.closest(".mat").dataset.id;
+    const info = eliminarMaterial(id);
+    expandidoId = null;
+    desenhar();
+    if (info) mostrarUndo("Material eliminado.", () => { inserirMaterial(info.item, info.indice); desenhar(); });
+  });
 }
 
 // ---------------------------------------------------------------- auxiliares
 function pct(a, b) { return (b > 0) ? Math.min(100, Math.round(a / b * 100)) : 0; }
 function sel(v, atual) { return v === atual ? "selected" : ""; }
-// valor limpo (sem ruido de virgula flutuante) para input type=number
 function vin(v) { return (v === null || v === undefined) ? "" : String(parseFloat(v.toFixed(6))); }
