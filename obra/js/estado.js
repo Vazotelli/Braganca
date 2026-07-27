@@ -26,6 +26,8 @@ function carregar() {
   (e.medicoes || []).forEach((m, i) => { if (!m.id) m.id = "med_" + i; });
   // migracao: bloco "negocio" (investimento/venda) pode faltar em dados antigos
   if (!e.negocio) e.negocio = clone(SEED).negocio;
+  // migracao: plano de acoes
+  if (!e.acoes) e.acoes = clone(SEED).acoes || [];
   return e;
 }
 
@@ -157,6 +159,27 @@ export function totaisMateriais() {
     estSem: r(estSem), estIva: r(estIva), estCom: r(estSem + estIva),
     gastoSem: r(gastoSem), gastoIva: r(gastoIva), gastoCom: r(gastoSem + gastoIva),
   };
+}
+
+// -------------------------------------------------------------------------
+// Plano de acoes
+// -------------------------------------------------------------------------
+export function adicionarAcao() {
+  const a = { id: novoId("acao"), descricao: "", dataFim: null, feito: false };
+  estado.acoes.push(a);
+  agendarGuardar(); notificar();
+  return a.id;
+}
+export function eliminarAcao(id) {
+  const i = estado.acoes.findIndex((x) => x.id === id);
+  if (i < 0) return null;
+  const [item] = estado.acoes.splice(i, 1);
+  agendarGuardar(); notificar();
+  return { item, indice: i };
+}
+export function inserirAcao(item, indice) {
+  estado.acoes.splice(Math.min(indice, estado.acoes.length), 0, item);
+  agendarGuardar(); notificar();
 }
 
 // -------------------------------------------------------------------------

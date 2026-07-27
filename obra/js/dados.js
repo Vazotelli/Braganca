@@ -1907,6 +1907,134 @@ export const SEED = {
       ]
     }
   ],
+  "acoes": [
+    {
+      "id": "acao_f01",
+      "descricao": "01 — Demolições",
+      "dataFim": "2026-06-12",
+      "feito": false
+    },
+    {
+      "id": "acao_f02",
+      "descricao": "02 — Preparação e marcações",
+      "dataFim": "2026-06-19",
+      "feito": false
+    },
+    {
+      "id": "acao_f03",
+      "descricao": "03 — Alvenaria",
+      "dataFim": "2026-07-03",
+      "feito": false
+    },
+    {
+      "id": "acao_f04",
+      "descricao": "04 — Pichelaria",
+      "dataFim": "2026-07-31",
+      "feito": false
+    },
+    {
+      "id": "acao_f05",
+      "descricao": "05 — Instalação Elétrica",
+      "dataFim": "2026-08-14",
+      "feito": false
+    },
+    {
+      "id": "acao_f06",
+      "descricao": "06 — Reboco",
+      "dataFim": "2026-09-04",
+      "feito": false
+    },
+    {
+      "id": "acao_f07",
+      "descricao": "07 — Tetos falsos",
+      "dataFim": "2026-10-02",
+      "feito": false
+    },
+    {
+      "id": "acao_f08",
+      "descricao": "08 — Caixilharia",
+      "dataFim": "2026-09-18",
+      "feito": false
+    },
+    {
+      "id": "acao_f09",
+      "descricao": "09 — Pavimento",
+      "dataFim": "2026-09-18",
+      "feito": false
+    },
+    {
+      "id": "acao_f10",
+      "descricao": "10 — Revestimentos",
+      "dataFim": "2026-10-16",
+      "feito": false
+    },
+    {
+      "id": "acao_f11",
+      "descricao": "11 — Cozinha",
+      "dataFim": "2026-10-30",
+      "feito": false
+    },
+    {
+      "id": "acao_f12",
+      "descricao": "12 — Instalação eletrica",
+      "dataFim": "2026-11-06",
+      "feito": false
+    },
+    {
+      "id": "acao_f13",
+      "descricao": "13 — Instalação sanitária",
+      "dataFim": "2026-11-13",
+      "feito": false
+    },
+    {
+      "id": "acao_f14",
+      "descricao": "14 — Portas e roupeiros",
+      "dataFim": "2026-10-30",
+      "feito": false
+    },
+    {
+      "id": "acao_f15",
+      "descricao": "15 — Pinturas",
+      "dataFim": "2026-12-11",
+      "feito": false
+    },
+    {
+      "id": "acao_f16",
+      "descricao": "16 — Acabamentos finais",
+      "dataFim": "2026-12-18",
+      "feito": false
+    },
+    {
+      "id": "acao_adm_01",
+      "descricao": "Licenciamento — mudança de uso (Câmara de Bragança)",
+      "dataFim": null,
+      "feito": false
+    },
+    {
+      "id": "acao_adm_02",
+      "descricao": "Constituição de propriedade horizontal",
+      "dataFim": null,
+      "feito": false
+    },
+    {
+      "id": "acao_adm_03",
+      "descricao": "Contadores definitivos E-REDES",
+      "dataFim": null,
+      "feito": false
+    },
+    {
+      "id": "acao_adm_04",
+      "descricao": "Certificação elétrica DGEG",
+      "dataFim": null,
+      "feito": false
+    },
+    {
+      "id": "acao_adm_05",
+      "descricao": "Certificado energético (CDE)",
+      "dataFim": null,
+      "feito": false
+    }
+  ],
   "equipamentos": [
     {
       "nome": "Frigorifico Combinado",

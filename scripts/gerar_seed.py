@@ -452,6 +452,31 @@ def tarefas_administrativas():
 # --------------------------------------------------------------------------
 # PRINCIPAL
 # --------------------------------------------------------------------------
+def acoes_iniciais(fases, admin):
+    """Plano de acoes: cada acao = descricao + data de fim combinada em obra.
+    Sementeia a partir das 16 fases (data de fim = sexta-feira da semana ISO) e
+    das tarefas administrativas (sem data — o Joao define). Tudo editavel/apagavel."""
+    acoes = []
+    for f in fases:
+        dfim = None
+        if f.get("semanaFim"):
+            try:
+                dfim = date.fromisocalendar(2026, int(f["semanaFim"]), 5).isoformat()
+            except ValueError:
+                dfim = None
+        acoes.append({
+            "id": f"acao_f{f['numero']}",
+            "descricao": f"{f['numero']} — {f['nome']}",
+            "dataFim": dfim, "feito": False,
+        })
+    for t in admin:
+        acoes.append({
+            "id": f"acao_{t['id']}", "descricao": t["nome"],
+            "dataFim": None, "feito": False,
+        })
+    return acoes
+
+
 def negocio_inicial():
     """Investimento e venda (Joao/Joana). Nao vem do Excel — valores-base
     editaveis na app. Regra: Joana investe 1/3 do total, com teto de 20.000.
@@ -527,6 +552,7 @@ def main():
         "especialidades": especialidades,
         "fases": fases,
         "tarefasAdministrativas": tarefas_administrativas(),
+        "acoes": acoes_iniciais(fases, tarefas_administrativas()),
         "equipamentos": equipamentos,
         "orcamentoConstrucao": orcamento,
         "negocio": negocio_inicial(),

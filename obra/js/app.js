@@ -26,7 +26,7 @@ const ECRAS = {
     render: renderPagamentos,
   },
   cronograma: {
-    titulo: "Cronograma",
+    titulo: "Plano de ações",
     render: renderCronograma,
   },
   plantas: {
