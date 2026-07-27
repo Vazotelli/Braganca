@@ -1,0 +1,127 @@
+/* =========================================================================
+   Obra Bragança — estilo base
+   Mobile-first. Alto contraste, legivel com sol direto. Alvos de toque >=44px.
+   ========================================================================= */
+
+:root {
+  /* --- Cores (alto contraste, sem cinzento-claro sobre branco) --- */
+  --cor-fundo:        #ffffff;
+  --cor-superficie:   #f2f5f7;   /* cartoes */
+  --cor-texto:        #10202b;   /* quase preto */
+  --cor-texto-suave:  #3d5566;   /* legivel ao sol, nao cinzento fraco */
+  --cor-linha:        #cdd8df;
+
+  --cor-primaria:     #1b4965;   /* azul escuro */
+  --cor-primaria-txt: #ffffff;
+  --cor-destaque:     #2a9d8f;   /* verde-agua (progresso) */
+
+  --cor-perigo:       #c1121f;   /* vermelho (a vencer <=5 dias) */
+  --cor-perigo-fundo: #fde7e8;
+  --cor-aviso:        #b8860b;   /* ambar (dependencias/por decidir) */
+  --cor-aviso-fundo:  #fdf4dd;
+  --cor-ok:           #2a7d2e;   /* verde (concluido/pago) */
+
+  /* --- Medidas --- */
+  --alvo-toque: 44px;
+  --raio: 12px;
+  --altura-tabbar: 64px;
+  --altura-cabecalho: 52px;
+
+  /* safe-areas iOS */
+  --safe-topo: env(safe-area-inset-top, 0px);
+  --safe-base: env(safe-area-inset-bottom, 0px);
+
+  --fonte: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  font-family: var(--fonte);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ---------------------------------------------------------------- Cabecalho */
+.cabecalho {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--cor-primaria);
+  color: var(--cor-primaria-txt);
+  padding-top: var(--safe-topo);
+  min-height: var(--altura-cabecalho);
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.cabecalho__titulo {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- Conteudo */
+.conteudo {
+  /* espaco para nao ficar tapado pela tabbar inferior */
+  padding: 16px 16px calc(var(--altura-tabbar) + var(--safe-base) + 16px);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ----------------------------------------------------------------- Tabbar */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  background: var(--cor-fundo);
+  border-top: 1px solid var(--cor-linha);
+  padding-bottom: var(--safe-base);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+.tabbar__botao {
+  flex: 1 1 0;
+  min-height: var(--altura-tabbar);
+  border: none;
+  background: none;
+  color: var(--cor-texto-suave);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.tabbar__icone { font-size: 1.4rem; line-height: 1; }
+.tabbar__botao[aria-current="page"] {
+  color: var(--cor-primaria);
+  font-weight: 700;
+}
+
+/* --------------------------------------------------- Blocos genericos base */
+.cartao {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-linha);
+  border-radius: var(--raio);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.placeholder {
+  text-align: center;
+  color: var(--cor-texto-suave);
+  padding: 48px 16px;
+}
+.placeholder__icone { font-size: 3rem; display: block; margin-bottom: 8px; }

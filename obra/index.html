@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <!-- viewport-fit=cover para respeitar as safe-areas do iPhone -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+  <meta name="theme-color" content="#1b4965">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Obra Bragança</title>
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <!-- Cabecalho: nome do ecra atual, sempre visivel -->
+  <header class="cabecalho" id="cabecalho">
+    <h1 class="cabecalho__titulo" id="titulo-ecra">Painel</h1>
+  </header>
+
+  <!-- Conteudo do ecra ativo -->
+  <main class="conteudo" id="conteudo">
+    <!-- preenchido por js/app.js -->
+  </main>
+
+  <!-- Barra de navegacao inferior fixa -->
+  <nav class="tabbar" id="tabbar" aria-label="Navegação principal">
+    <button class="tabbar__botao" data-ecra="painel" aria-label="Painel">
+      <span class="tabbar__icone" aria-hidden="true">▣</span>
+      <span class="tabbar__texto">Painel</span>
+    </button>
+    <button class="tabbar__botao" data-ecra="custos" aria-label="Custos">
+      <span class="tabbar__icone" aria-hidden="true">€</span>
+      <span class="tabbar__texto">Custos</span>
+    </button>
+    <button class="tabbar__botao" data-ecra="pagamentos" aria-label="Pagamentos">
+      <span class="tabbar__icone" aria-hidden="true">◔</span>
+      <span class="tabbar__texto">Pagamentos</span>
+    </button>
+    <button class="tabbar__botao" data-ecra="cronograma" aria-label="Cronograma">
+      <span class="tabbar__icone" aria-hidden="true">▤</span>
+      <span class="tabbar__texto">Cronograma</span>
+    </button>
+    <button class="tabbar__botao" data-ecra="plantas" aria-label="Plantas">
+      <span class="tabbar__icone" aria-hidden="true">▦</span>
+      <span class="tabbar__texto">Plantas</span>
+    </button>
+  </nav>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
