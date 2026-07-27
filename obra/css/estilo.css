@@ -90,6 +90,7 @@ html, body {
 }
 .tabbar__botao {
   flex: 1 1 0;
+  min-width: 0;
   min-height: var(--altura-tabbar);
   border: none;
   background: none;
@@ -99,12 +100,13 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  padding: 6px 2px;
+  padding: 6px 1px;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   cursor: pointer;
 }
-.tabbar__icone { font-size: 1.4rem; line-height: 1; }
+.tabbar__texto { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabbar__icone { font-size: 1.35rem; line-height: 1; }
 .tabbar__botao[aria-current="page"] {
   color: var(--cor-primaria);
   font-weight: 700;
@@ -319,3 +321,31 @@ html, body {
 .med__notas { padding: 0 16px 14px; font-size: 0.85rem; color: var(--cor-texto-suave); }
 .med.is-aberto { border-color: var(--cor-primaria); }
 .med .editor { margin: 0; }
+
+/* ===================================================================== Venda */
+.venda-h { font-size: 1rem; margin: 0 0 10px; color: var(--cor-primaria); }
+.venda-dica { font-weight: 400; color: var(--cor-texto-suave); font-size: 0.8rem; }
+.venda-nota { font-size: 0.8rem; color: var(--cor-texto-suave); margin: 10px 0 0; }
+
+/* campos editaveis (laranja) */
+.venda-edit { border-color: #e8a33d; background: #fff7ec; }
+.campo-laranja { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.campo-laranja:last-child { margin-bottom: 0; }
+.campo-laranja > span:first-child { font-size: 0.85rem; color: var(--cor-texto); font-weight: 600; }
+.campo-laranja__wrap { display: flex; align-items: center; border: 1.5px solid #e8a33d; border-radius: 10px; background: #fff; overflow: hidden; }
+.campo-laranja__wrap:focus-within { border-color: var(--cor-primaria); box-shadow: 0 0 0 3px rgba(27,73,101,.15); }
+.campo-laranja input {
+  flex: 1; min-width: 0; min-height: 48px; border: none; outline: none;
+  font: inherit; font-size: 1.15rem; font-weight: 700; padding: 0 12px; background: transparent; color: var(--cor-texto);
+}
+.campo-laranja__suf { padding: 0 14px; font-weight: 700; color: var(--cor-texto-suave); }
+
+/* linhas de resultado */
+.venda-linha { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--cor-linha); }
+.venda-linha:last-of-type { border-bottom: none; }
+.venda-linha__rot { color: var(--cor-texto); }
+.venda-linha__val { font-weight: 700; font-size: 1.05rem; }
+.venda-linha__val small { color: var(--cor-texto-suave); font-weight: 600; }
+.venda-linha.is-forte .venda-linha__val { font-size: 1.3rem; color: var(--cor-primaria); }
+.venda-total { border-color: var(--cor-primaria); border-width: 2px; }
+.venda-total .venda-linha.is-forte .venda-linha__val { color: var(--cor-ok); }

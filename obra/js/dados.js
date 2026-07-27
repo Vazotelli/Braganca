@@ -1944,5 +1944,11 @@ export const SEED = {
       "quemFornece": "João Ribeiro",
       "observacoes": ""
     }
-  ]
+  ],
+  "negocio": {
+    "investimentoTotal": 80000,
+    "precoVendaE": 130000,
+    "precoVendaD": 120000,
+    "taxaImpostos": 0.2
+  }
 };

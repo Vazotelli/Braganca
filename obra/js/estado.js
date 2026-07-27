@@ -24,6 +24,8 @@ function carregar() {
   }
   // migracao leve: garantir id em cada medicao (o seed antigo nao tinha)
   (e.medicoes || []).forEach((m, i) => { if (!m.id) m.id = "med_" + i; });
+  // migracao: bloco "negocio" (investimento/venda) pode faltar em dados antigos
+  if (!e.negocio) e.negocio = clone(SEED).negocio;
   return e;
 }
 
@@ -154,5 +156,40 @@ export function totaisMateriais() {
   return {
     estSem: r(estSem), estIva: r(estIva), estCom: r(estSem + estIva),
     gastoSem: r(gastoSem), gastoIva: r(gastoIva), gastoCom: r(gastoSem + gastoIva),
+  };
+}
+
+// Constantes da regra de investimento (fixas; so os 4 valores laranja sao editaveis)
+const JOANA_LIMIAR = 60000;   // acima disto a Joana entra so com o teto
+const JOANA_TETO = 20000;     // teto do investimento da Joana
+const JOANA_FRACAO = 1 / 3;   // senao, 1/3 do total
+
+// calculo do investimento / venda / lucro (Joao / Joana)
+export function calcularNegocio() {
+  const n = estado.negocio || {};
+  const num0 = (v) => (typeof v === "number" && !Number.isNaN(v)) ? v : 0;
+
+  const total = num0(n.investimentoTotal);
+  const joana = total > JOANA_LIMIAR ? JOANA_TETO : total * JOANA_FRACAO;
+  const joao = total - joana;
+  const pInvJoao = total ? joao / total : 0;
+  const pInvJoana = total ? joana / total : 0;
+  // Joao leva a sua % + metade da % da Joana (faz a obra)
+  const pLucroJoao = pInvJoao + pInvJoana / 2;
+  const pLucroJoana = 1 - pLucroJoao;
+
+  const liquido = 1 - num0(n.taxaImpostos);
+  const posE = num0(n.precoVendaE) * liquido;
+  const posD = num0(n.precoVendaD) * liquido;
+  const vendas = posE + posD;
+  const lucroTotal = vendas - total;
+
+  const lucroJoao = lucroTotal * pLucroJoao;
+  const lucroJoana = lucroTotal * pLucroJoana;
+
+  return {
+    total, joao, joana, pInvJoao, pInvJoana, pLucroJoao, pLucroJoana,
+    posE, posD, vendas, lucroTotal, lucroJoao, lucroJoana,
+    totalJoao: joao + lucroJoao, totalJoana: joana + lucroJoana,
   };
 }

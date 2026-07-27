@@ -424,6 +424,19 @@ def tarefas_administrativas():
 # --------------------------------------------------------------------------
 # PRINCIPAL
 # --------------------------------------------------------------------------
+def negocio_inicial():
+    """Investimento e venda (Joao/Joana). Nao vem do Excel — valores-base
+    editaveis na app. Regra: Joana investe 1/3 do total, com teto de 20.000.
+    Lucro do Joao = %investimento dele + metade da %investimento da Joana
+    (porque e' ele que faz a obra)."""
+    return {
+        "investimentoTotal": 80000,   # editavel
+        "precoVendaE": 130000,        # editavel (Apartamento Esquerdo)
+        "precoVendaD": 120000,        # editavel (Apartamento Direito)
+        "taxaImpostos": 0.20,         # editavel
+    }
+
+
 def main():
     if not XLSX.exists():
         print(f"ERRO: nao encontro o Excel em:\n  {XLSX}")
@@ -488,6 +501,7 @@ def main():
         "tarefasAdministrativas": tarefas_administrativas(),
         "equipamentos": equipamentos,
         "orcamentoConstrucao": orcamento,
+        "negocio": negocio_inicial(),
     }
 
     corpo = json.dumps(seed, ensure_ascii=False, indent=2)
