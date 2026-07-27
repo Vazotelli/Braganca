@@ -95,3 +95,10 @@ function arrancar() {
 }
 
 document.addEventListener("DOMContentLoaded", arrancar);
+
+// offline-first: regista o service worker (so em contexto seguro: https / localhost)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW falhou:", e));
+  });
+}
