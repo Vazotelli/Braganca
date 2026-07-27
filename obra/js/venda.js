@@ -78,6 +78,8 @@ function linha(rotulo, valor, pct, forte = false) {
 }
 
 function ligar() {
+  if (contentorRef._ligadoVenda) return;
+  contentorRef._ligadoVenda = true;
   contentorRef.addEventListener("change", (ev) => {
     const el = ev.target.closest("[data-campo]");
     if (!el) return;

@@ -49,6 +49,12 @@ export function semanaAtual() {
   return semanaISO(new Date());
 }
 
+// data de hoje em ISO "YYYY-MM-DD"
+export function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // dias entre hoje e uma data ISO (negativo = já passou)
 export function diasAte(iso) {
   if (!iso) return null;

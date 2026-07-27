@@ -349,3 +349,26 @@ html, body {
 .venda-linha.is-forte .venda-linha__val { font-size: 1.3rem; color: var(--cor-primaria); }
 .venda-total { border-color: var(--cor-primaria); border-width: 2px; }
 .venda-total .venda-linha.is-forte .venda-linha__val { color: var(--cor-ok); }
+
+/* ================================================================ Pagamentos */
+.barra--fina { height: 6px; margin: 6px 0 0; }
+.esp { border: 1px solid var(--cor-linha); border-radius: 10px; margin-bottom: 10px; background: var(--cor-fundo); overflow: hidden; }
+.esp.is-aberto { border-color: var(--cor-primaria); }
+.esp__topo { padding: 12px 14px; cursor: pointer; }
+.esp__cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.esp__nome { font-weight: 700; }
+.esp__val { font-size: 0.85rem; color: var(--cor-texto-suave); white-space: nowrap; }
+.esp__pct { display: block; text-align: right; font-size: 0.78rem; color: var(--cor-texto-suave); margin-top: 3px; }
+.esp__corpo { padding: 4px 14px 14px; border-top: 1px solid var(--cor-linha); background: var(--cor-superficie); }
+
+.marco { border: 1px solid var(--cor-linha); border-radius: 10px; padding: 12px; margin: 10px 0; background: var(--cor-fundo); }
+.marco.is-pago { border-left: 4px solid var(--cor-ok); }
+.marco__topo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.marco__pago {
+  flex-shrink: 0; min-height: 40px; padding: 0 14px; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer;
+  border: 1.5px solid var(--cor-ok); background: var(--cor-fundo); color: var(--cor-ok);
+}
+.marco.is-pago .marco__pago { background: var(--cor-ok); color: #fff; }
+.marco__desc { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--cor-linha); border-radius: 8px; padding: 0 10px; font: inherit; }
+.marco__grelha { display: flex; flex-wrap: wrap; gap: 10px; }
+.marco__grelha .campo { flex: 1 1 44%; }

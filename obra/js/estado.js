@@ -159,6 +159,49 @@ export function totaisMateriais() {
   };
 }
 
+// -------------------------------------------------------------------------
+// Pagamentos (mao de obra)
+// -------------------------------------------------------------------------
+export function pagoDe(e) {
+  return e.marcos.reduce((s, m) => s + (m.dataPaga ? (m.valor || 0) : 0), 0);
+}
+export function pctPago(e) {
+  const t = e.totalContratado || 0;
+  return t ? pagoDe(e) / t : 0;
+}
+export function totaisMO() {
+  let contratado = 0, pago = 0;
+  for (const e of estado.especialidades) {
+    contratado += e.totalContratado || 0;
+    pago += pagoDe(e);
+  }
+  return { contratado, pago };
+}
+
+export function adicionarMarco(espId) {
+  const e = estado.especialidades.find((x) => x.id === espId);
+  if (!e) return null;
+  const m = { id: novoId("mk"), descricao: "", valor: 0, dataPrevista: null, dataPaga: null, metodo: "Transferência" };
+  e.marcos.push(m);
+  agendarGuardar(); notificar();
+  return m.id;
+}
+export function eliminarMarco(espId, marcoId) {
+  const e = estado.especialidades.find((x) => x.id === espId);
+  if (!e) return null;
+  const i = e.marcos.findIndex((m) => m.id === marcoId);
+  if (i < 0) return null;
+  const [item] = e.marcos.splice(i, 1);
+  agendarGuardar(); notificar();
+  return { espId, item, indice: i };
+}
+export function inserirMarco(espId, item, indice) {
+  const e = estado.especialidades.find((x) => x.id === espId);
+  if (!e) return;
+  e.marcos.splice(Math.min(indice, e.marcos.length), 0, item);
+  agendarGuardar(); notificar();
+}
+
 // Constantes da regra de investimento (fixas; so os 4 valores laranja sao editaveis)
 const JOANA_LIMIAR = 60000;   // acima disto a Joana entra so com o teto
 const JOANA_TETO = 20000;     // teto do investimento da Joana

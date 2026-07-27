@@ -23,12 +23,6 @@ function desenhar() {
     <button id="add-med" class="btn-add">+ Adicionar medição</button>
     <div id="lista-med">${meds.map(cartao).join("")}</div>`;
 
-  corpoRef.querySelector("#add-med").addEventListener("click", () => {
-    const id = adicionarMedicao();
-    expandidoId = id;
-    desenhar();
-    document.querySelector(`.med[data-id="${id}"]`)?.scrollIntoView({ block: "center" });
-  });
   ligar();
 }
 
@@ -75,22 +69,17 @@ function editor(md) {
 }
 
 function ligar() {
-  corpoRef.querySelectorAll(".med").forEach((el) => {
-    el.querySelector(".med__topo").addEventListener("click", (ev) => {
-      if (ev.target.closest("input,select,label,button")) return;
-      const id = el.dataset.id;
-      expandidoId = (expandidoId === id) ? null : id;
-      desenhar();
-    });
-  });
+  if (corpoRef._ligadoMed) return;
+  corpoRef._ligadoMed = true;
 
   corpoRef.addEventListener("change", (ev) => {
     const el = ev.target.closest("[data-acao]");
     if (!el || el.tagName === "BUTTON") return;
-    const id = ev.target.closest(".med").dataset.id;
+    const medEl = ev.target.closest(".med");
+    if (!medEl) return;
     const acao = el.dataset.acao;
     alterar((est) => {
-      const md = est.medicoes.find((x) => x.id === id);
+      const md = est.medicoes.find((x) => x.id === medEl.dataset.id);
       if (!md) return;
       if (acao === "quantidade" || acao === "precoUnit")
         md[acao] = el.value === "" ? null : parseFloat(el.value);
@@ -100,13 +89,31 @@ function ligar() {
   });
 
   corpoRef.addEventListener("click", (ev) => {
-    const btn = ev.target.closest('[data-acao="eliminar"]');
-    if (!btn) return;
-    const id = ev.target.closest(".med").dataset.id;
-    const info = eliminarMedicao(id);
-    expandidoId = null;
-    desenhar();
-    if (info) mostrarUndo("Medição eliminada.", () => { inserirMedicao(info.item, info.indice); desenhar(); });
+    // adicionar
+    if (ev.target.closest("#add-med")) {
+      const id = adicionarMedicao();
+      expandidoId = id;
+      desenhar();
+      document.querySelector(`.med[data-id="${id}"]`)?.scrollIntoView({ block: "center" });
+      return;
+    }
+    // eliminar
+    const btnDel = ev.target.closest('[data-acao="eliminar"]');
+    if (btnDel) {
+      const id = ev.target.closest(".med").dataset.id;
+      const info = eliminarMedicao(id);
+      expandidoId = null;
+      desenhar();
+      if (info) mostrarUndo("Medição eliminada.", () => { inserirMedicao(info.item, info.indice); desenhar(); });
+      return;
+    }
+    // expandir/colapsar
+    const topo = ev.target.closest(".med__topo");
+    if (topo && !ev.target.closest("input,select,label,button")) {
+      const id = ev.target.closest(".med").dataset.id;
+      expandidoId = (expandidoId === id) ? null : id;
+      desenhar();
+    }
   });
 }
 
