@@ -1306,7 +1306,9 @@ export const SEED = {
       "semanaFim": 24,
       "estado": "nao_iniciada",
       "dependeDe": [],
-      "plantasAssociadas": [],
+      "plantasAssociadas": [
+        "01_demolicoes"
+      ],
       "subtarefas": []
     },
     {
@@ -1316,7 +1318,9 @@ export const SEED = {
       "semanaInicio": 24,
       "semanaFim": 25,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "01"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1340,8 +1344,13 @@ export const SEED = {
       "semanaInicio": 25,
       "semanaFim": 27,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "01",
+        "02"
+      ],
+      "plantasAssociadas": [
+        "02_alvenarias"
+      ],
       "subtarefas": [
         {
           "nome": "Parede Central",
@@ -1364,8 +1373,12 @@ export const SEED = {
       "semanaInicio": 28,
       "semanaFim": 31,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "03"
+      ],
+      "plantasAssociadas": [
+        "03_saneamento_agua"
+      ],
       "subtarefas": [
         {
           "nome": "Canalização Casa de Banho",
@@ -1394,8 +1407,15 @@ export const SEED = {
       "semanaInicio": 28,
       "semanaFim": 33,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "03",
+        "04"
+      ],
+      "plantasAssociadas": [
+        "05_iluminacao",
+        "06_interruptores",
+        "08_tomadas"
+      ],
       "subtarefas": [
         {
           "nome": "Conduítes e tubagens embebidas nas paredes (RTIEBT)",
@@ -1430,7 +1450,11 @@ export const SEED = {
       "semanaInicio": 32,
       "semanaFim": 36,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "03",
+        "04",
+        "05"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1454,7 +1478,10 @@ export const SEED = {
       "semanaInicio": 36,
       "semanaFim": 40,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "05",
+        "06"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1490,8 +1517,12 @@ export const SEED = {
       "semanaInicio": 25,
       "semanaFim": 38,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "03"
+      ],
+      "plantasAssociadas": [
+        "07_peitoris"
+      ],
       "subtarefas": [
         {
           "nome": "Procura e adjudicação",
@@ -1514,7 +1545,9 @@ export const SEED = {
       "semanaInicio": 36,
       "semanaFim": 38,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "06"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1544,7 +1577,10 @@ export const SEED = {
       "semanaInicio": 38,
       "semanaFim": 42,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "06",
+        "09"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1574,7 +1610,9 @@ export const SEED = {
       "semanaInicio": 26,
       "semanaFim": 44,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "06"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1610,8 +1648,15 @@ export const SEED = {
       "semanaInicio": 40,
       "semanaFim": 45,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "06",
+        "07"
+      ],
+      "plantasAssociadas": [
+        "05_iluminacao",
+        "06_interruptores",
+        "08_tomadas"
+      ],
       "subtarefas": [
         {
           "nome": "Fiação e cablagem completa",
@@ -1652,8 +1697,13 @@ export const SEED = {
       "semanaInicio": 42,
       "semanaFim": 46,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "04",
+        "10"
+      ],
+      "plantasAssociadas": [
+        "03_saneamento_agua"
+      ],
       "subtarefas": [
         {
           "nome": "Torneiras",
@@ -1688,8 +1738,12 @@ export const SEED = {
       "semanaInicio": 38,
       "semanaFim": 44,
       "estado": "nao_iniciada",
-      "dependeDe": [],
-      "plantasAssociadas": [],
+      "dependeDe": [
+        "06"
+      ],
+      "plantasAssociadas": [
+        "04_carpintarias"
+      ],
       "subtarefas": [
         {
           "nome": "Medições pós reboco",
@@ -1730,7 +1784,11 @@ export const SEED = {
       "semanaInicio": 46,
       "semanaFim": 50,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "06",
+        "07",
+        "10"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {
@@ -1766,7 +1824,12 @@ export const SEED = {
       "semanaInicio": 48,
       "semanaFim": 51,
       "estado": "nao_iniciada",
-      "dependeDe": [],
+      "dependeDe": [
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
       "plantasAssociadas": [],
       "subtarefas": [
         {

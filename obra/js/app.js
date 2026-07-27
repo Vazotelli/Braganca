@@ -7,6 +7,7 @@
 import { render as renderCustos } from "./custos.js";
 import { render as renderVenda } from "./venda.js";
 import { render as renderPagamentos } from "./pagamentos.js";
+import { render as renderCronograma } from "./cronograma.js";
 
 // Definicao dos 5 ecras. `render` sera' substituido pelos modulos reais
 // (custos.js, pagamentos.js, ...) a medida que os passos avancam.
@@ -25,7 +26,7 @@ const ECRAS = {
   },
   cronograma: {
     titulo: "Cronograma",
-    render: (container) => placeholder(container, "▤", "Cronograma"),
+    render: renderCronograma,
   },
   plantas: {
     titulo: "Plantas",

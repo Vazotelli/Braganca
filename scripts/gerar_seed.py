@@ -362,7 +362,35 @@ def ler_fases(wb):
                 "semanaFim": max(semanas),
                 "concluida": False,
             })
+    _aplicar_dependencias(fases)
     return fases
+
+
+# Grafo de dependencias entre fases (logica de obra) e plantas associadas.
+# Nao vem do Excel — definido aqui para o ecra Cronograma.
+_DEPENDENCIAS = {
+    "01": [], "02": ["01"], "03": ["01", "02"], "04": ["03"],
+    "05": ["03", "04"], "06": ["03", "04", "05"], "07": ["05", "06"],
+    "08": ["03"], "09": ["06"], "10": ["06", "09"], "11": ["06"],
+    "12": ["06", "07"], "13": ["04", "10"], "14": ["06"],
+    "15": ["06", "07", "10"], "16": ["12", "13", "14", "15"],
+}
+_PLANTAS_POR_FASE = {
+    "01": ["01_demolicoes"],
+    "03": ["02_alvenarias"],
+    "04": ["03_saneamento_agua"],
+    "05": ["05_iluminacao", "06_interruptores", "08_tomadas"],
+    "08": ["07_peitoris"],
+    "12": ["05_iluminacao", "06_interruptores", "08_tomadas"],
+    "13": ["03_saneamento_agua"],
+    "14": ["04_carpintarias"],
+}
+
+
+def _aplicar_dependencias(fases):
+    for f in fases:
+        f["dependeDe"] = _DEPENDENCIAS.get(f["numero"], [])
+        f["plantasAssociadas"] = _PLANTAS_POR_FASE.get(f["numero"], [])
 
 
 # --------------------------------------------------------------------------

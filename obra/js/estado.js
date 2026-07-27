@@ -178,6 +178,24 @@ export function totaisMO() {
   return { contratado, pago };
 }
 
+export function adicionarEspecialidade() {
+  const e = { id: novoId("esp"), nome: "", totalContratado: 0, taxaIva: 0.06, marcos: [] };
+  estado.especialidades.push(e);
+  agendarGuardar(); notificar();
+  return e.id;
+}
+export function eliminarEspecialidade(id) {
+  const i = estado.especialidades.findIndex((x) => x.id === id);
+  if (i < 0) return null;
+  const [item] = estado.especialidades.splice(i, 1);
+  agendarGuardar(); notificar();
+  return { item, indice: i };
+}
+export function inserirEspecialidade(item, indice) {
+  estado.especialidades.splice(Math.min(indice, estado.especialidades.length), 0, item);
+  agendarGuardar(); notificar();
+}
+
 export function adicionarMarco(espId) {
   const e = estado.especialidades.find((x) => x.id === espId);
   if (!e) return null;

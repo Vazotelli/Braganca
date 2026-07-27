@@ -40,7 +40,7 @@ PASTA_ESPECIALIDADE = BASE / "05. Projetos especialidade"
 # Destino dentro do repo (este script vive em /scripts, o destino em /obra)
 RAIZ_REPO = Path(__file__).resolve().parent.parent
 DESTINO = RAIZ_REPO / "obra" / "plantas"
-INDICE_JS = RAIZ_REPO / "obra" / "js" / "plantas.js"
+INDICE_JS = RAIZ_REPO / "obra" / "js" / "plantas_dados.js"
 
 LIMITE_AVISO_MB = 25  # avisa antes de copiar ficheiros maiores que isto
 

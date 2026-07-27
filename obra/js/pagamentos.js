@@ -6,6 +6,7 @@
 import {
   obter, alterar, pagoDe, pctPago, totaisMO,
   adicionarMarco, eliminarMarco, inserirMarco,
+  adicionarEspecialidade, eliminarEspecialidade, inserirEspecialidade,
 } from "./estado.js";
 import { euros, perc, data as fmtData, hojeISO, esc } from "./utils.js";
 import { mostrarUndo } from "./ui.js";
@@ -30,7 +31,8 @@ function desenhar() {
       </div>
     </div>
     <div class="barra"><div class="barra__cheio" style="width:${pctBarra(t.pago, t.contratado)}%"></div></div>
-    <div id="lista-esp">${esps.map(cartaoEsp).join("")}</div>`;
+    <div id="lista-esp">${esps.map(cartaoEsp).join("")}</div>
+    <button class="btn-add" data-acao="addEsp">+ Adicionar especialidade</button>`;
   ligar();
 }
 
@@ -41,7 +43,7 @@ function cartaoEsp(e) {
     <div class="esp ${aberto ? "is-aberto" : ""}" data-id="${e.id}">
       <div class="esp__topo">
         <div class="esp__cab">
-          <span class="esp__nome">${esc(e.nome)}</span>
+          <span class="esp__nome">${esc(e.nome) || "<em>nova especialidade</em>"}</span>
           <span class="esp__val">${euros(pagoDe(e))} / ${euros(e.totalContratado)}</span>
         </div>
         <div class="barra barra--fina"><div class="barra__cheio" style="width:${Math.round(p * 100)}%"></div></div>
@@ -54,8 +56,15 @@ function cartaoEsp(e) {
 function corpoEsp(e) {
   return `
     <div class="esp__corpo">
+      <div class="esp__editcab">
+        <label class="campo campo--largo"><span>Nome da especialidade</span>
+          <input type="text" data-acao="nomeEsp" value="${esc(e.nome ?? "")}" placeholder="Ex.: Eletricista"></label>
+        <label class="campo"><span>Total contratado (s/IVA)</span>
+          <input type="number" inputmode="decimal" step="any" data-acao="totalEsp" value="${vin(e.totalContratado)}"></label>
+      </div>
       ${e.marcos.map(marco).join("") || `<p class="vazio">Sem marcos.</p>`}
       <button class="btn-add" data-acao="addMarco">+ Adicionar marco</button>
+      <button class="btn-eliminar" data-acao="eliminarEsp">Eliminar especialidade</button>
     </div>`;
 }
 
@@ -96,12 +105,15 @@ function ligar() {
     const el = ev.target.closest("[data-acao]");
     if (!el || el.tagName === "BUTTON") return;
     const espEl = ev.target.closest(".esp");
-    const marcoEl = ev.target.closest(".marco");
-    if (!espEl || !marcoEl) return;
+    if (!espEl) return;
     const acao = el.dataset.acao;
+    const marcoEl = ev.target.closest(".marco");
     alterar((est) => {
       const e = est.especialidades.find((x) => x.id === espEl.dataset.id);
-      const m = e?.marcos.find((x) => x.id === marcoEl.dataset.marco);
+      if (!e) return;
+      if (acao === "nomeEsp") { e.nome = el.value; return; }
+      if (acao === "totalEsp") { e.totalContratado = el.value === "" ? 0 : parseFloat(el.value); return; }
+      const m = e.marcos.find((x) => x.id === marcoEl?.dataset.marco);
       if (!m) return;
       if (acao === "valor") m.valor = el.value === "" ? 0 : parseFloat(el.value);
       else if (acao === "dataPrevista") m.dataPrevista = el.value || null;
@@ -112,12 +124,27 @@ function ligar() {
   });
 
   contentorRef.addEventListener("click", (ev) => {
+    // adicionar especialidade (botao fora de qualquer .esp)
+    if (ev.target.closest('button[data-acao="addEsp"]')) {
+      const id = adicionarEspecialidade();
+      expandidoId = id;
+      desenhar();
+      document.querySelector(`.esp[data-id="${id}"]`)?.scrollIntoView({ block: "center" });
+      return;
+    }
     const espEl = ev.target.closest(".esp");
     if (!espEl) return;
     const espId = espEl.dataset.id;
     const btn = ev.target.closest("button[data-acao]");
     if (btn) {
       const acao = btn.dataset.acao;
+      if (acao === "eliminarEsp") {
+        const info = eliminarEspecialidade(espId);
+        expandidoId = null;
+        desenhar();
+        if (info) mostrarUndo("Especialidade eliminada.", () => { inserirEspecialidade(info.item, info.indice); desenhar(); });
+        return;
+      }
       if (acao === "togglePago") {
         const marcoId = ev.target.closest(".marco").dataset.marco;
         alterar((est) => {

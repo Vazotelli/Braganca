@@ -372,3 +372,40 @@ html, body {
 .marco__desc { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--cor-linha); border-radius: 8px; padding: 0 10px; font: inherit; }
 .marco__grelha { display: flex; flex-wrap: wrap; gap: 10px; }
 .marco__grelha .campo { flex: 1 1 44%; }
+
+.esp__editcab { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 0 4px; }
+
+/* ================================================================ Cronograma */
+.fase { border: 1px solid var(--cor-linha); border-radius: 12px; padding: 14px; margin-bottom: 12px; background: var(--cor-fundo); }
+.fase--atual { border-color: var(--cor-destaque); box-shadow: 0 0 0 2px rgba(42,157,143,.25); }
+.fase__cab { display: flex; align-items: center; gap: 8px; }
+.fase__num { background: var(--cor-primaria); color: #fff; font-weight: 800; border-radius: 8px; padding: 2px 8px; font-size: 0.9rem; }
+.fase__nome { font-weight: 700; flex: 1; }
+.fase__meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; color: var(--cor-texto-suave); font-size: 0.85rem; margin: 8px 0 6px; }
+.fase__prog { margin-left: auto; }
+.tag-atual { background: var(--cor-destaque); color: #fff; font-weight: 700; font-size: 0.72rem; padding: 1px 8px; border-radius: 20px; }
+
+.badge--nao_iniciada { background: #e7edf1; color: #3d5566; }
+.badge--em_curso { background: var(--cor-aviso-fundo); color: var(--cor-aviso); }
+.badge--concluida { background: #e2f3e3; color: var(--cor-ok); }
+.badge--bloqueada { background: var(--cor-perigo-fundo); color: var(--cor-perigo); }
+
+.aviso { background: var(--cor-aviso-fundo); color: var(--cor-aviso); border: 1px solid #e6cf8a; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; margin: 8px 0; }
+
+.fase__estado { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.fase__estado span { font-size: 0.85rem; color: var(--cor-texto-suave); }
+.fase__estado select { flex: 1; min-height: 44px; border: 1px solid var(--cor-linha); border-radius: 8px; background: var(--cor-fundo); color: var(--cor-texto); font: inherit; padding: 0 10px; }
+
+.subs { list-style: none; margin: 6px 0 0; padding: 0; }
+.sub { border-top: 1px solid var(--cor-linha); }
+.sub label { display: flex; align-items: center; gap: 10px; padding: 10px 2px; cursor: pointer; }
+.sub input { width: 24px; height: 24px; flex-shrink: 0; }
+.sub__nome { flex: 1; }
+.sub.is-feita .sub__nome { text-decoration: line-through; color: var(--cor-texto-suave); }
+.sub__sem { font-size: 0.78rem; color: var(--cor-texto-suave); white-space: nowrap; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border: 1px solid var(--cor-primaria); color: var(--cor-primaria); background: var(--cor-fundo); border-radius: 20px; padding: 5px 12px; font: inherit; font-size: 0.8rem; cursor: pointer; }
+
+.admin__datas { display: flex; gap: 10px; margin: 8px 0; }
+.admin__datas .campo { flex: 1; }
