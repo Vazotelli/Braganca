@@ -7,6 +7,7 @@
 import { obter, alterar, adicionarAcao, eliminarAcao, inserirAcao } from "./estado.js";
 import { data as fmtData, diasAte, esc } from "./utils.js";
 import { mostrarUndo } from "./ui.js";
+import { abrir as abrirRegisto, contagens } from "./registo.js";
 
 let contentorRef = null;
 
@@ -32,7 +33,17 @@ function desenhar() {
     <button class="btn-add" data-acao="addAcao">+ Adicionar ação</button>
     <div id="lista-acoes">${acoes.map(cartao).join("") || `<p class="vazio">Sem ações. Adiciona a primeira.</p>`}</div>`;
   ligar();
+  atualizarContagens();
 }
+
+// crachas com o n.o de registos (fotos/notas) por acao — carregados do IndexedDB
+async function atualizarContagens() {
+  const m = await contagens();
+  contentorRef.querySelectorAll("[data-conta]").forEach((el) => {
+    el.textContent = m[el.dataset.conta] || 0;
+  });
+}
+window.__registosMudaram = () => atualizarContagens();
 
 function cartao(a) {
   const d = a.dataFim ? diasAte(a.dataFim) : null;
@@ -53,6 +64,7 @@ function cartao(a) {
           <span class="acao__fim-rot">Fim:</span>
           <input class="acao__data" type="date" data-acao="dataFim" value="${a.dataFim ?? ""}">
           ${etiqueta}
+          <button class="acao__reg" data-acao="registo" title="Fotos e notas">📷 <span data-conta="${a.id}">0</span></button>
         </div>
       </div>
       <button class="acao__del" data-acao="eliminarAcao" aria-label="Eliminar">✕</button>
@@ -84,6 +96,12 @@ function ligar() {
   c.addEventListener("click", (ev) => {
     const btn = ev.target.closest("button[data-acao]");
     if (!btn) return;
+    if (btn.dataset.acao === "registo") {
+      const acaoEl = ev.target.closest(".acao");
+      const a = obter().acoes.find((x) => x.id === acaoEl.dataset.id);
+      abrirRegisto(acaoEl.dataset.id, a?.descricao || "");
+      return;
+    }
     if (btn.dataset.acao === "addAcao") {
       const id = adicionarAcao();
       desenhar();
