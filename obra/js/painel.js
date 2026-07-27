@@ -3,8 +3,10 @@
 // proximos pagamentos e acoes a terminar. Em 2 segundos ve-se o essencial.
 // =========================================================================
 
-import { obter, totaisMateriais, totaisMO } from "./estado.js";
+import { obter, totaisMateriais, totaisMO, reporSeed } from "./estado.js";
 import { euros, perc, data as fmtData, diasAte, esc } from "./utils.js";
+import { exportarExcel } from "./exportar.js";
+import { limparRegistos } from "./registo.js";
 
 export function render(contentor) {
   const mat = totaisMateriais();
@@ -38,11 +40,25 @@ export function render(contentor) {
     ${proximosPagamentos()}
 
     <h2 class="pl-grupo">Ações a terminar</h2>
-    ${acoesTerminar()}`;
+    ${acoesTerminar()}
+
+    <h2 class="pl-grupo">Dados</h2>
+    <div class="painel-acoes">
+      <button class="btn-sec" data-fn="exportar">⬇ Exportar para Excel</button>
+      <button class="btn-sec btn-sec--perigo" data-fn="repor">↺ Repor dados do Excel</button>
+    </div>`;
 
   contentor.querySelectorAll("[data-ir]").forEach((el) => {
     el.style.cursor = "pointer";
     el.addEventListener("click", () => window.__ir?.(el.dataset.ir));
+  });
+
+  contentor.querySelector('[data-fn="exportar"]').addEventListener("click", exportarExcel);
+  contentor.querySelector('[data-fn="repor"]').addEventListener("click", async () => {
+    if (!confirm("Repor todos os dados a partir do Excel?\n\nIsto apaga as tuas alterações e as fotos guardadas. Não é possível anular.")) return;
+    reporSeed();
+    await limparRegistos();
+    location.reload();
   });
 }
 

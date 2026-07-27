@@ -483,3 +483,8 @@ html, body {
 .reg__item-nota { margin: 8px 0; }
 .reg__fotos { display: flex; flex-wrap: wrap; gap: 8px; }
 .reg__fotos img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; }
+
+/* ================================================================ Definicoes */
+.painel-acoes { display: flex; flex-direction: column; gap: 10px; }
+.btn-sec { min-height: 48px; border: 1px solid var(--cor-primaria); background: var(--cor-fundo); color: var(--cor-primaria); border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; }
+.btn-sec--perigo { border-color: var(--cor-perigo); color: var(--cor-perigo); }

@@ -42,6 +42,14 @@ function porAcao(acaoId) {
   return operar("readonly", (s) => s.index("acaoId").getAll(acaoId));
 }
 
+// apaga toda a base de fotos/notas (usado no "repor dados")
+export function limparRegistos() {
+  return new Promise((res) => {
+    const r = indexedDB.deleteDatabase(DB);
+    r.onsuccess = r.onerror = r.onblocked = () => res();
+  });
+}
+
 // contagem de registos por acao (para os crachas do Plano)
 export async function contagens() {
   const lista = await todos().catch(() => []);
