@@ -7,11 +7,18 @@ dados entre dispositivos (ex.: telemóvel + computador).
 Modelo: a app envia o **estado completo** (um documento JSON) e lê-o de volta.
 Reconciliação simples **last-write-wins** pela marca de tempo `atualizadoEm`.
 
+## ⚠️ Usa uma Sheet NOVA (não a do tracker de despesas)
+
+O tracker de despesas tem o seu próprio Apps Script (com `doGet`/`doPost`) na
+Sheet dele. **NÃO** cries este script nessa Sheet — partirias o tracker (um
+projeto só admite um `doGet`/`doPost`). Cria uma **Sheet nova e vazia** só para
+a obra.
+
 ## Instalar (uma vez, ~3 minutos)
 
-1. Abre a tua Google Sheet.
+1. Cria uma **Google Sheet nova e vazia** (ex.: nome "Obra Bragança — sync").
 2. Menu **Extensões → Apps Script**.
-3. Apaga o código que lá estiver e cola **todo** o conteúdo de `Codigo.gs`. Guarda (💾).
+3. Cola **todo** o conteúdo de `Codigo.gs` (o projeto está vazio). Guarda (💾).
 4. Carrega em **Implementar → Nova implementação**.
    - Engrenagem ⚙ → tipo **App Web**.
    - **Executar como:** Eu (a tua conta).

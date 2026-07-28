@@ -3,8 +3,10 @@
  * numa folha dedicada da tua Google Sheet e devolve-o quando a app pede.
  *
  * COMO INSTALAR (ver passo a passo no README):
- *   1. Abre a tua Google Sheet → Extensões → Apps Script.
- *   2. Apaga o que lá estiver, cola ISTO tudo, Guarda (💾).
+ *   ⚠️ Usa uma Sheet NOVA e vazia — NÃO a do tracker de despesas (partirias o
+ *      script dele; um projeto só admite um doGet/doPost).
+ *   1. Cria uma Google Sheet nova → Extensões → Apps Script.
+ *   2. Cola ISTO tudo, Guarda (💾).
  *   3. Implementar (Deploy) → Nova implementação → tipo "App Web".
  *      • Executar como: Eu
  *      • Quem tem acesso: Qualquer pessoa
