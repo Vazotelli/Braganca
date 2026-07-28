@@ -7,6 +7,7 @@ import { obter, totaisMateriais, totaisMO, reporSeed } from "./estado.js";
 import { euros, perc, data as fmtData, diasAte, esc } from "./utils.js";
 import { exportarExcel } from "./exportar.js";
 import { limparRegistos } from "./registo.js";
+import { obterUrl, definirUrl, sincronizar } from "./sincronizar.js";
 
 export function render(contentor) {
   const mat = totaisMateriais();
@@ -42,6 +43,17 @@ export function render(contentor) {
     <h2 class="pl-grupo">Ações a terminar</h2>
     ${acoesTerminar()}
 
+    <h2 class="pl-grupo">Sincronização</h2>
+    <div class="cartao sync">
+      <label class="sync__lbl" for="sync-url">URL do Web App (Google Sheets)</label>
+      <input id="sync-url" class="sync__url" type="url" inputmode="url" autocomplete="off"
+             placeholder="https://script.google.com/macros/s/.../exec" value="${esc(obterUrl())}">
+      <div class="painel-acoes">
+        <button class="btn-sec" data-fn="sincronizar">⟳ Sincronizar agora</button>
+      </div>
+      <p class="sync__estado" id="sync-estado">Cola o URL do teu Web App e toca em Sincronizar.</p>
+    </div>
+
     <h2 class="pl-grupo">Dados</h2>
     <div class="painel-acoes">
       <button class="btn-sec" data-fn="exportar">⬇ Exportar para Excel</button>
@@ -59,6 +71,33 @@ export function render(contentor) {
     reporSeed();
     await limparRegistos();
     location.reload();
+  });
+
+  // --- Sincronização ---
+  const urlEl = contentor.querySelector("#sync-url");
+  const estadoEl = contentor.querySelector("#sync-estado");
+  urlEl.addEventListener("change", () => definirUrl(urlEl.value));
+  contentor.querySelector('[data-fn="sincronizar"]').addEventListener("click", async (ev) => {
+    definirUrl(urlEl.value);
+    if (!urlEl.value.trim()) { estadoEl.textContent = "⚠ Falta o URL do Web App."; return; }
+    const botao = ev.currentTarget;
+    botao.disabled = true; estadoEl.textContent = "A sincronizar…";
+    try {
+      const r = await sincronizar();
+      if (r.estado === "importado") {
+        estadoEl.textContent = "↓ Dados atualizados a partir da Sheet.";
+        setTimeout(() => window.__ir?.("painel"), 400);
+      } else if (r.estado === "enviado") {
+        estadoEl.textContent = "↑ Enviado para a Sheet.";
+      } else {
+        estadoEl.textContent = "✓ Já está tudo igual.";
+      }
+    } catch (e) {
+      estadoEl.textContent = "✗ Não deu para sincronizar (vê o URL / a ligação).";
+      console.warn("sync:", e);
+    } finally {
+      botao.disabled = false;
+    }
   });
 }
 

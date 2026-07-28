@@ -1,13 +1,13 @@
 // service worker — cache dos assets para a app funcionar sem rede.
 // Bump a versao quando mudares ficheiros para forcar atualizacao do cache.
-const CACHE = "obra-braganca-v1";
+const CACHE = "obra-braganca-v2";
 
 const NUCLEO = [
   "./", "index.html", "css/estilo.css",
   "js/app.js", "js/estado.js", "js/dados.js", "js/utils.js", "js/ui.js",
   "js/custos.js", "js/medicoes.js", "js/pagamentos.js", "js/cronograma.js",
   "js/plantas.js", "js/plantas_dados.js", "js/painel.js", "js/venda.js",
-  "js/registo.js", "js/exportar.js", "js/vendor/xlsx.mini.js",
+  "js/registo.js", "js/exportar.js", "js/sincronizar.js", "js/vendor/xlsx.mini.js",
 ];
 
 self.addEventListener("install", (e) => {

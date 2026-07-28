@@ -33,6 +33,7 @@ function carregar() {
 
 function guardarJa() {
   try {
+    estado.atualizadoEm = Date.now();   // marca de tempo p/ sincronizacao (last-write-wins)
     localStorage.setItem(CHAVE, JSON.stringify(estado));
   } catch (e) {
     console.error("falha a guardar em localStorage:", e);
@@ -42,6 +43,15 @@ function guardarJa() {
 function agendarGuardar() {
   clearTimeout(timer);
   timer = setTimeout(guardarJa, 500);
+}
+
+// grava JA' se a app for para segundo plano ou fechar (nao perder edicoes recentes)
+if (typeof window !== "undefined") {
+  const flush = () => { clearTimeout(timer); guardarJa(); };
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
 }
 
 function notificar() {
@@ -67,6 +77,19 @@ export function reporSeed() {
   estado = clone(SEED);
   guardarJa();
   notificar();
+}
+
+// substitui o estado inteiro (usado pelo sync ao puxar dados remotos)
+export function substituir(novo) {
+  if (!novo || typeof novo !== "object") return;
+  estado = novo;
+  guardarJa();
+  notificar();
+}
+
+// marca de tempo da ultima alteracao (para o sync decidir quem e' mais recente)
+export function atualizadoEm() {
+  return estado.atualizadoEm || 0;
 }
 
 // --- adicionar / eliminar / inserir (com suporte a Anular) ---

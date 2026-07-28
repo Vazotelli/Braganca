@@ -488,3 +488,32 @@ html, body {
 .painel-acoes { display: flex; flex-direction: column; gap: 10px; }
 .btn-sec { min-height: 48px; border: 1px solid var(--cor-primaria); background: var(--cor-fundo); color: var(--cor-primaria); border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; }
 .btn-sec--perigo { border-color: var(--cor-perigo); color: var(--cor-perigo); }
+.btn-sec:disabled { opacity: .5; }
+
+/* ---- Sincronizacao ---- */
+.sync { margin-bottom: 16px; }
+.sync__lbl { display: block; font-size: .82rem; color: var(--cor-texto-suave); margin-bottom: 6px; }
+.sync__url { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--cor-linha); border-radius: 10px; background: var(--cor-fundo); color: var(--cor-texto); font: inherit; margin-bottom: 12px; }
+.sync__url:focus { outline: 2px solid var(--cor-primaria); border-color: var(--cor-primaria); }
+.sync__estado { margin-top: 10px; font-size: .85rem; color: var(--cor-texto-suave); min-height: 1.2em; }
+
+/* ============================================================ Polish tactil */
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.mat__topo, .esp__topo, .med__topo, .fase__cab, .tabbar__botao, .subtabs__b,
+.pl-item, .painel-linha { user-select: none; -webkit-user-select: none; }
+
+/* feedback ao tocar */
+.pl-item:active, .painel-linha:active, .mat__topo:active, .esp__topo:active,
+.med__topo:active, .acao:active { background: var(--cor-superficie); }
+button:active { filter: brightness(0.94); }
+.tabbar__botao:active { background: var(--cor-superficie); }
+
+/* scroll suave e com inercia */
+html { scroll-behavior: smooth; }
+.conteudo, .visor__corpo.reg { -webkit-overflow-scrolling: touch; }
+
+/* alvo de toque um pouco maior no botao de registo */
+.acao__reg { min-height: 34px; }

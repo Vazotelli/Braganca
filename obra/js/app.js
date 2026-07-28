@@ -102,3 +102,10 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW falhou:", e));
   });
 }
+
+// UX: tocar num campo numerico seleciona tudo (escrever por cima e' mais rapido)
+document.addEventListener("focusin", (e) => {
+  if (e.target.matches("input[type=number]")) {
+    setTimeout(() => { try { e.target.select(); } catch (_) {} }, 0);
+  }
+});
