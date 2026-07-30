@@ -10,6 +10,7 @@ import { render as renderPagamentos } from "./pagamentos.js";
 import { render as renderCronograma } from "./cronograma.js";
 import { render as renderPlantas, abrir as abrirPlanta } from "./plantas.js";
 import { render as renderPainel } from "./painel.js";
+import { ligarAutomatico } from "./sincronizar.js";
 
 // Definicao dos 5 ecras. `render` sera' substituido pelos modulos reais
 // (custos.js, pagamentos.js, ...) a medida que os passos avancam.
@@ -92,6 +93,13 @@ function arrancar() {
   ligarNavegacao();
   const inicial = location.hash.slice(1);
   mostrarEcra(ECRAS[inicial] ? inicial : ECRA_INICIAL);
+
+  // sincronizacao automatica: recebe ao abrir, envia ao esconder/fechar.
+  // se importar dados novos, re-renderiza o ecra atual.
+  ligarAutomatico(() => {
+    const atual = location.hash.slice(1);
+    mostrarEcra(ECRAS[atual] ? atual : ECRA_INICIAL);
+  });
 }
 
 document.addEventListener("DOMContentLoaded", arrancar);

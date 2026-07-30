@@ -51,7 +51,9 @@ export function render(contentor) {
       <div class="painel-acoes">
         <button class="btn-sec" data-fn="sincronizar">⟳ Sincronizar agora</button>
       </div>
-      <p class="sync__estado" id="sync-estado">Cola o URL do teu Web App e toca em Sincronizar.</p>
+      <p class="sync__estado" id="sync-estado">${obterUrl()
+        ? "Automático: recebe ao abrir, envia ao fechar. Ou toca para sincronizar já."
+        : "Cola o URL do teu Web App e toca em Sincronizar."}</p>
     </div>
 
     <h2 class="pl-grupo">Dados</h2>

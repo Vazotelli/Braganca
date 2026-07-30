@@ -13,7 +13,7 @@
 // em localStorage). Assim nada e' inventado e cada pessoa usa a sua folha.
 // =========================================================================
 
-import { obter, substituir, atualizadoEm } from "./estado.js";
+import { obter, substituir, atualizadoEm, subscrever } from "./estado.js";
 
 const CHAVE_URL = "obra_sync_url";
 
@@ -52,7 +52,8 @@ function jsonp(params, timeout = 20000) {
 // ---------------------------------------------------------------- POST (set)
 // no-cors + text/plain = "simple request": e' enviado sem preflight. Nao se
 // consegue LER a resposta neste modo, por isso confirmamos no proximo pull.
-async function enviarEstado() {
+// keepalive=true permite que o envio sobreviva ao fecho da pagina (unload).
+async function enviarEstado(keepalive = false) {
   const url = obterUrl();
   if (!url) throw new Error("sem URL de sincronizacao");
   const corpo = JSON.stringify({ action: "set", estado: obter() });
@@ -61,7 +62,21 @@ async function enviarEstado() {
     mode: "no-cors",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: corpo,
+    keepalive,
   });
+}
+
+// pull-only: adota o remoto se for mais recente. Usado no arranque (auto).
+export async function puxarRemoto() {
+  const localTs = atualizadoEm();
+  const resp = await jsonp({ action: "get" });
+  const remoto = resp && resp.json ? safeParse(resp.json) : null;
+  const remotoTs = remoto && remoto.atualizadoEm ? remoto.atualizadoEm : 0;
+  if (remoto && remotoTs > localTs) {
+    substituir(remoto);
+    return { estado: "importado", ts: remotoTs };
+  }
+  return { estado: "igual", ts: localTs };
 }
 
 // ---------------------------------------------------------------- orquestracao
@@ -92,3 +107,33 @@ export async function sincronizar() {
 }
 
 function safeParse(s) { try { return typeof s === "string" ? JSON.parse(s) : s; } catch { return null; } }
+
+// ---------------------------------------------------------------- automatico
+// RECEBE ao abrir a app; ENVIA (keepalive) ao esconder/fechar, mas so' se
+// houve alteracoes locais desde a ultima sincronizacao (evita escrever por
+// cima de dados mais recentes quando so' estiveste a consultar).
+let sujo = false;
+let ligado = false;
+export function ligarAutomatico(aoImportar) {
+  if (ligado) return;
+  ligado = true;
+
+  subscrever(() => { sujo = true; });   // qualquer alteracao marca "por enviar"
+
+  const enviarSeSujo = () => {
+    if (sujo && temUrl()) { enviarEstado(true).catch(() => {}); sujo = false; }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") enviarSeSujo();
+  });
+  window.addEventListener("pagehide", enviarSeSujo);
+
+  // receber ao abrir (se ja' houver URL configurado)
+  if (temUrl()) {
+    puxarRemoto()
+      .then((r) => { sujo = false; if (r.estado === "importado" && aoImportar) aoImportar(); })
+      .catch(() => { sujo = false; });
+  } else {
+    sujo = false;
+  }
+}
