@@ -16,6 +16,17 @@
 import { obter, substituir, atualizadoEm, subscrever } from "./estado.js";
 
 const CHAVE_URL = "obra_sync_url";
+const CHAVE_JA = "obra_sync_ja";   // marca que este dispositivo ja' sincronizou
+
+// Um dispositivo que NUNCA sincronizou tem, no maximo, o seed (dados do Excel).
+// Nesse estado nunca deve ENVIAR: se o fizesse, apagaria na Sheet o trabalho
+// feito noutro dispositivo. Primeira sincronizacao = so' receber.
+function jaSincronizou() {
+  try { return localStorage.getItem(CHAVE_JA) === "1"; } catch { return false; }
+}
+function marcarSincronizado() {
+  try { localStorage.setItem(CHAVE_JA, "1"); } catch {}
+}
 
 export function obterUrl() {
   try { return localStorage.getItem(CHAVE_URL) || ""; } catch { return ""; }
@@ -66,16 +77,22 @@ async function enviarEstado(keepalive = false) {
   });
 }
 
-// pull-only: adota o remoto se for mais recente. Usado no arranque (auto).
+// pull-only: adota o remoto se for mais recente (ou se for a 1a sincronizacao
+// deste dispositivo, caso em que o que esta' na Sheet manda sempre).
 export async function puxarRemoto() {
   const localTs = atualizadoEm();
+  const primeira = !jaSincronizou();
   const resp = await jsonp({ action: "get" });
   const remoto = resp && resp.json ? safeParse(resp.json) : null;
   const remotoTs = remoto && remoto.atualizadoEm ? remoto.atualizadoEm : 0;
-  if (remoto && remotoTs > localTs) {
+  if (remoto && remoto.acoes && (primeira || remotoTs > localTs)) {
     substituir(remoto);
+    marcarSincronizado();
     return { estado: "importado", ts: remotoTs };
   }
+  // contactamos a Sheet com sucesso: podemos passar a enviar. Se ela estiver
+  // vazia nao ha' nada a perder; se tinha dados, ja' os adotamos acima.
+  marcarSincronizado();
   return { estado: "igual", ts: localTs };
 }
 
@@ -86,23 +103,35 @@ export async function puxarRemoto() {
 // Devolve { estado: 'importado'|'enviado'|'igual', ts }.
 export async function sincronizar() {
   const localTs = atualizadoEm();
+  const primeira = !jaSincronizou();
 
   // 1) ler o remoto (se falhar, e' erro de sync — nao arriscamos escrever)
   const resp = await jsonp({ action: "get" });
   const remoto = resp && resp.json ? safeParse(resp.json) : null;
   const remotoTs = remoto && remoto.atualizadoEm ? remoto.atualizadoEm : 0;
 
-  // 2) remoto mais recente -> adotamos
-  if (remoto && remotoTs > localTs) {
+  // 2) PRIMEIRA sincronizacao deste dispositivo: se a Sheet tem dados, adotamo-los
+  //    sempre (nunca enviar por cima do que ja' la' esta').
+  if (primeira && remoto && remoto.acoes) {
     substituir(remoto);
+    marcarSincronizado();
     return { estado: "importado", ts: remotoTs };
   }
-  // 3) local mais recente (ou Sheet ainda vazia) -> enviamos
+
+  // 3) remoto mais recente -> adotamos
+  if (remoto && remotoTs > localTs) {
+    substituir(remoto);
+    marcarSincronizado();
+    return { estado: "importado", ts: remotoTs };
+  }
+  // 4) local mais recente (ou Sheet ainda vazia) -> enviamos
   if (localTs > remotoTs) {
     await enviarEstado();
+    marcarSincronizado();
     return { estado: "enviado", ts: localTs };
   }
-  // 4) iguais -> nada a fazer
+  // 5) iguais -> nada a fazer
+  marcarSincronizado();
   return { estado: "igual", ts: localTs };
 }
 
@@ -120,8 +149,9 @@ export function ligarAutomatico(aoImportar) {
 
   subscrever(() => { sujo = true; });   // qualquer alteracao marca "por enviar"
 
+  // so' envia se houve alteracoes locais E este dispositivo ja' recebeu uma vez
   const enviarSeSujo = () => {
-    if (sujo && temUrl()) { enviarEstado(true).catch(() => {}); sujo = false; }
+    if (sujo && temUrl() && jaSincronizou()) { enviarEstado(true).catch(() => {}); sujo = false; }
   };
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") enviarSeSujo();
