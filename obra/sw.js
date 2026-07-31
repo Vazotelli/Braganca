@@ -1,6 +1,6 @@
 // service worker — cache dos assets para a app funcionar sem rede.
 // Bump a versao quando mudares ficheiros para forcar atualizacao do cache.
-const CACHE = "obra-braganca-v3";
+const CACHE = "obra-braganca-v4";
 
 const NUCLEO = [
   "./", "index.html", "css/estilo.css",

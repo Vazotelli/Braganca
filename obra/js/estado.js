@@ -31,9 +31,12 @@ function carregar() {
   return e;
 }
 
-function guardarJa() {
+// preservarTs=true mantem a marca de tempo que veio nos dados (usado ao importar
+// da Sheet): senao o estado importado ficava "mais recente" que o remoto e a
+// app reenviava-o na sincronizacao seguinte.
+function guardarJa(preservarTs = false) {
   try {
-    estado.atualizadoEm = Date.now();   // marca de tempo p/ sincronizacao (last-write-wins)
+    if (!preservarTs) estado.atualizadoEm = Date.now();   // last-write-wins
     localStorage.setItem(CHAVE, JSON.stringify(estado));
   } catch (e) {
     console.error("falha a guardar em localStorage:", e);
@@ -79,11 +82,12 @@ export function reporSeed() {
   notificar();
 }
 
-// substitui o estado inteiro (usado pelo sync ao puxar dados remotos)
+// substitui o estado inteiro (usado pelo sync ao puxar dados remotos).
+// mantem a marca de tempo do remoto -> ficamos exatamente iguais a' Sheet.
 export function substituir(novo) {
   if (!novo || typeof novo !== "object") return;
   estado = novo;
-  guardarJa();
+  guardarJa(true);
   notificar();
 }
 
