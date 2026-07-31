@@ -1,6 +1,12 @@
 // service worker — cache dos assets para a app funcionar sem rede.
-// Bump a versao quando mudares ficheiros para forcar atualizacao do cache.
-const CACHE = "obra-braganca-v4";
+//
+// Estrategia (importante):
+//   • codigo da app (html/js/css) -> REDE PRIMEIRO, cache so' como salvaguarda.
+//     Assim uma correcao publicada chega sempre ao browser. (A versao anterior
+//     era cache-first e deixava os ficheiros velhos presos indefinidamente.)
+//   • plantas (imagens/pdf) -> CACHE PRIMEIRO (sao pesadas e nunca mudam).
+//   • outros dominios (ex.: script.google.com do sync) -> nao intercetar.
+const CACHE = "obra-braganca-v5";
 
 const NUCLEO = [
   "./", "index.html", "css/estilo.css",
@@ -11,7 +17,13 @@ const NUCLEO = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(NUCLEO)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      // cache:"reload" obriga a ir a' rede: sem isto o precache podia copiar
+      // ficheiros velhos do cache HTTP do browser.
+      .then((c) => c.addAll(NUCLEO.map((u) => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -22,18 +34,33 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// cache-first; o que for novo (ex.: plantas) fica em cache ao ser pedido
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
+  const req = e.request;
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;   // sync, fontes, etc.: passar
+
+  // plantas: cache primeiro (ficheiros grandes e estaveis)
+  if (url.pathname.includes("/plantas/")) {
+    e.respondWith(
+      caches.match(req).then((resp) =>
+        resp || fetch(req).then((r) => {
+          if (r.ok) { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(req, copia)); }
+          return r;
+        })
+      )
+    );
+    return;
+  }
+
+  // codigo da app: rede primeiro, cache como salvaguarda (offline)
   e.respondWith(
-    caches.match(e.request).then((resp) =>
-      resp || fetch(e.request).then((r) => {
-        if (r.ok && r.type === "basic") {
-          const copia = r.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copia));
-        }
+    fetch(req)
+      .then((r) => {
+        if (r.ok) { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(req, copia)); }
         return r;
-      }).catch(() => resp)
-    )
+      })
+      .catch(() => caches.match(req).then((resp) => resp || caches.match("index.html")))
   );
 });

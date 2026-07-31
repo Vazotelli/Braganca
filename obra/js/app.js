@@ -109,6 +109,15 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW falhou:", e));
   });
+
+  // quando uma versao nova assume o controlo, recarregar UMA vez para a app
+  // passar a correr o codigo novo (senao ficava a versao velha ate' outro reload)
+  let jaRecarregou = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (jaRecarregou) return;
+    jaRecarregou = true;
+    location.reload();
+  });
 }
 
 // UX: tocar num campo numerico seleciona tudo (escrever por cima e' mais rapido)
