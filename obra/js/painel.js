@@ -128,9 +128,8 @@ function proximosPagamentos() {
   lista.sort((a, b) => (a.quando < b.quando ? -1 : 1));
   if (!lista.length) return `<p class="vazio">Sem pagamentos previstos.</p>`;
   return lista.slice(0, 6).map((p) => {
-    const urgente = p.dias !== null && p.dias <= 5;
     return `
-      <div class="painel-linha ${urgente ? "is-urgente" : ""}" data-ir="pagamentos">
+      <div class="painel-linha ${estadoLinha(p.dias)}" data-ir="pagamentos">
         <div>
           <div class="painel-linha__t">${esc(p.nome)}</div>
           <div class="painel-linha__s"><span>${fmtData(p.quando)}</span>${etiquetaDias(p.dias)}</div>
@@ -148,9 +147,8 @@ function acoesTerminar() {
     .filter((a) => a.dias <= 14);            // horizonte de 2 semanas (+ atrasadas)
   if (!lista.length) return `<p class="vazio">Nada a terminar nas próximas 2 semanas.</p>`;
   return lista.slice(0, 8).map((a) => {
-    const urgente = a.dias <= 5;
     return `
-      <div class="painel-linha ${urgente ? "is-urgente" : ""}" data-ir="cronograma">
+      <div class="painel-linha ${estadoLinha(a.dias)}" data-ir="cronograma">
         <div>
           <div class="painel-linha__t">${esc(a.descricao) || "(sem descrição)"}</div>
           <div class="painel-linha__s"><span>${fmtData(a.dataFim)}</span>${etiquetaDias(a.dias)}</div>
@@ -159,11 +157,20 @@ function acoesTerminar() {
   }).join("");
 }
 
-// devolve so' a etiqueta; o espaco entre ela e a data vem do gap do flex
+// devolve so' a etiqueta; o espaco entre ela e a data vem do gap do flex.
+// Mesmo codigo de cores do Plano: vermelho = passou o prazo, ambar = a chegar.
 function etiquetaDias(dias) {
   if (dias === null || dias === undefined) return "";
   if (dias < 0) return `<span class="acao-tag acao-tag--vermelho">atrasada ${-dias} d</span>`;
   if (dias === 0) return `<span class="acao-tag acao-tag--vermelho">hoje</span>`;
-  if (dias <= 5) return `<span class="acao-tag acao-tag--vermelho">em ${dias} d</span>`;
+  if (dias <= 5) return `<span class="acao-tag acao-tag--ambar">em ${dias} d</span>`;
   return `<span>em ${dias} d</span>`;
+}
+
+// classe da barra de estado da linha (a mesma logica das etiquetas acima)
+function estadoLinha(dias) {
+  if (dias === null || dias === undefined) return "";
+  if (dias <= 0) return "is-urgente";
+  if (dias <= 5) return "is-perto";
+  return "";
 }

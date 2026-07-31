@@ -1175,6 +1175,58 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
 
 .conteudo, .visor__corpo.reg { -webkit-overflow-scrolling: touch; }
 
+/* ============================================ 20. Semáforo de estado ====
+   Um só código de cores em toda a app:
+     verde    = feito / pago / sem pendências
+     âmbar    = a aproximar-se do prazo / por decidir
+     vermelho = passou o prazo / falta informação para orçamentar
+   Aplica-se sempre da mesma forma: barra de 3px à esquerda da linha,
+   etiqueta a condizer, e nada mais. Continua a ser sinal, não decoração. */
+
+/* --- Plano: ação concluída fica verde (antes só desvanecia) --- */
+.acao.is-feita { opacity: .6; }
+.acao.is-feita::before { background: var(--c-verde); }
+/* nesta lista a checkbox quer dizer "concluída", por isso é verde e não azul */
+.acao__feito input[type="checkbox"]:checked {
+  background-color: var(--c-verde);
+  border-color: var(--c-verde);
+}
+
+/* --- Painel: mesma escala do Plano (âmbar entre 1 e 5 dias) --- */
+.painel-linha.is-perto::before { background: var(--c-ambar); }
+
+/* --- Pagamentos: semáforo por especialidade --- */
+.esp { position: relative; }
+.esp::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+}
+.esp.is-ok::before { background: var(--c-verde); }
+.esp.is-perto::before { background: var(--c-ambar); }
+.esp.is-atraso::before { background: var(--c-vermelho); }
+.esp.is-ok .esp__pct { color: var(--c-verde); font-weight: 600; }
+.barra__cheio.is-completa { background: var(--c-verde); }
+
+/* --- Pagamentos: marco a marco --- */
+.marco__topo { flex-wrap: wrap; }
+.marco.is-atrasado { border-color: var(--c-vermelho); }
+.marco.is-perto { border-color: var(--c-ambar); }
+
+/* --- Custos: falta o preço é mais grave do que falta decidir --- */
+.badge--perigo { background: var(--c-vermelho-sv); color: var(--c-vermelho); }
+
+/* --- Venda: lucro e retorno --- */
+.venda-linha__val.is-ok { color: var(--c-verde); }
+.venda-linha__val.is-mau { color: var(--c-vermelho); }
+.venda-total .venda-linha.is-forte .venda-linha__val.is-ok { color: var(--c-verde); }
+.venda-total .venda-linha.is-forte .venda-linha__val.is-mau { color: var(--c-vermelho); }
+
 /* ------------------------------------------------------------- desktop --- */
 @media (min-width: 700px) {
   .conteudo { padding-left: var(--e6); padding-right: var(--e6); }

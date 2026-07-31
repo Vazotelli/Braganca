@@ -148,7 +148,8 @@ function desenharLista(alvo) {
 function linhaMaterial(m) {
   const cIva = (typeof m.total === "number") ? m.total + ivaDe(m) : null;
   const aberto = expandidoId === m.id;
-  const badge = (m.estado === "por_orcamentar") ? `<span class="badge badge--aviso">por orçamentar</span>`
+  // vermelho = falta o preço (não dá para orçamentar); âmbar = falta decidir
+  const badge = (m.estado === "por_orcamentar") ? `<span class="badge badge--perigo">por orçamentar</span>`
     : (m.estado === "por_decidir") ? `<span class="badge badge--aviso">por decidir</span>` : "";
   const qtdTxt = (m.qtd === null || m.qtd === undefined) ? "?" : numero(m.qtd);
   return `

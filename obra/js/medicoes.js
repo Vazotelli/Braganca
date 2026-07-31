@@ -33,7 +33,7 @@ function cartao(md) {
   const valor = (md.quantidade != null && md.precoUnit != null)
     ? euros(md.quantidade * md.precoUnit) : "—";
   const badge = md.estado === "por_decidir" ? `<span class="badge badge--aviso">por decidir</span>`
-    : md.estado === "por_orcamentar" ? `<span class="badge badge--aviso">por orçamentar</span>` : "";
+    : md.estado === "por_orcamentar" ? `<span class="badge badge--perigo">por orçamentar</span>` : "";
   return `
     <div class="med cartao ${aberto ? "is-aberto" : ""}" data-id="${md.id}">
       <div class="med__topo">

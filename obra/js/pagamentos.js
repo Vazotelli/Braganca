@@ -8,7 +8,7 @@ import {
   adicionarMarco, eliminarMarco, inserirMarco,
   adicionarEspecialidade, eliminarEspecialidade, inserirEspecialidade,
 } from "./estado.js";
-import { euros, perc, data as fmtData, hojeISO, esc } from "./utils.js";
+import { euros, perc, data as fmtData, hojeISO, diasAte, esc } from "./utils.js";
 import { mostrarUndo } from "./ui.js";
 
 let expandidoId = null;
@@ -38,17 +38,30 @@ function desenhar() {
   ligar();
 }
 
+// Semaforo da especialidade, so' a partir do que ja' esta' guardado:
+//   verde   = esta' tudo pago
+//   vermelho= tem um marco previsto que ja' passou e continua por pagar
+//   ambar   = tem um marco a vencer nos proximos 5 dias
+function estadoEsp(e) {
+  const porPagar = e.marcos.filter((m) => !m.dataPaga && m.dataPrevista);
+  if (e.marcos.length && pctPago(e) >= 0.999) return "is-ok";
+  if (porPagar.some((m) => diasAte(m.dataPrevista) < 0)) return "is-atraso";
+  if (porPagar.some((m) => diasAte(m.dataPrevista) <= 5)) return "is-perto";
+  return "";
+}
+
 function cartaoEsp(e) {
   const aberto = expandidoId === e.id;
   const p = pctPago(e);
+  const completa = p >= 0.999 ? " is-completa" : "";
   return `
-    <div class="esp ${aberto ? "is-aberto" : ""}" data-id="${e.id}">
+    <div class="esp ${estadoEsp(e)} ${aberto ? "is-aberto" : ""}" data-id="${e.id}">
       <div class="esp__topo">
         <div class="esp__cab">
           <span class="esp__nome">${esc(e.nome) || "<em>nova especialidade</em>"}</span>
           <span class="esp__val">${euros(pagoDe(e))} / ${euros(e.totalContratado)}</span>
         </div>
-        <div class="barra barra--fina"><div class="barra__cheio" style="width:${Math.round(p * 100)}%"></div></div>
+        <div class="barra barra--fina"><div class="barra__cheio${completa}" style="width:${Math.round(p * 100)}%"></div></div>
         <span class="esp__pct">${perc(p)}</span>
       </div>
       ${aberto ? corpoEsp(e) : ""}
@@ -76,13 +89,21 @@ function corpoEsp(e) {
 
 function marco(m) {
   const pago = !!m.dataPaga;
+  const dias = (!pago && m.dataPrevista) ? diasAte(m.dataPrevista) : null;
+  let classe = pago ? "is-pago" : "", etiqueta = "";
+  if (dias !== null) {
+    if (dias < 0) { classe = "is-atrasado"; etiqueta = `<span class="acao-tag acao-tag--vermelho">vencido há ${-dias} d</span>`; }
+    else if (dias === 0) { classe = "is-atrasado"; etiqueta = `<span class="acao-tag acao-tag--vermelho">hoje</span>`; }
+    else if (dias <= 5) { classe = "is-perto"; etiqueta = `<span class="acao-tag acao-tag--ambar">em ${dias} d</span>`; }
+  }
   return `
-    <div class="marco ${pago ? "is-pago" : ""}" data-marco="${m.id}">
+    <div class="marco ${classe}" data-marco="${m.id}">
       <div class="marco__topo">
         <button class="marco__pago" data-acao="togglePago" aria-pressed="${pago}">
           ${pago ? `<svg class="ic ic--sm" aria-hidden="true"><use href="#i-check"></use></svg>Pago` : "Marcar pago"}
         </button>
         <input class="marco__desc" type="text" data-acao="descricao" placeholder="Descrição do marco" value="${esc(m.descricao ?? "")}">
+        ${etiqueta}
       </div>
       <div class="marco__grelha">
         <label class="campo"><span>Valor</span>

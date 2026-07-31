@@ -42,16 +42,16 @@ function desenhar() {
 
     <div class="cartao">
       <h2 class="venda-h">Lucro</h2>
-      ${linha("Lucro total", euros(c.lucroTotal), "", true)}
-      ${linha("João", euros(c.lucroJoao), perc(c.pLucroJoao))}
-      ${linha("Joana", euros(c.lucroJoana), perc(c.pLucroJoana))}
+      ${linha("Lucro total", euros(c.lucroTotal), "", true, tom(c.lucroTotal))}
+      ${linha("João", euros(c.lucroJoao), perc(c.pLucroJoao), false, tom(c.lucroJoao))}
+      ${linha("Joana", euros(c.lucroJoana), perc(c.pLucroJoana), false, tom(c.lucroJoana))}
       <p class="venda-nota">O João leva a sua % de investimento + metade da % da Joana (faz a obra).</p>
     </div>
 
     <div class="cartao venda-total">
       <h2 class="venda-h">Retorno total (investimento + lucro)</h2>
-      ${linha("João", euros(c.totalJoao), "", true)}
-      ${linha("Joana", euros(c.totalJoana), "", true)}
+      ${linha("João", euros(c.totalJoao), "", true, tom(c.totalJoao - c.joao))}
+      ${linha("Joana", euros(c.totalJoana), "", true, tom(c.totalJoana - c.joana))}
     </div>`;
 
   ligar();
@@ -69,11 +69,17 @@ function campoNum(rotulo, campo, valor, sufixo) {
     </label>`;
 }
 
-function linha(rotulo, valor, pct, forte = false) {
+// verde se dá lucro, vermelho se dá prejuízo, neutro se for zero
+function tom(v) {
+  if (typeof v !== "number" || Number.isNaN(v) || v === 0) return "";
+  return v > 0 ? "is-ok" : "is-mau";
+}
+
+function linha(rotulo, valor, pct, forte = false, tomValor = "") {
   return `
     <div class="venda-linha ${forte ? "is-forte" : ""}">
       <span class="venda-linha__rot">${rotulo}</span>
-      <span class="venda-linha__val">${valor}${pct ? ` <small>(${pct})</small>` : ""}</span>
+      <span class="venda-linha__val ${tomValor}">${valor}${pct ? ` <small>(${pct})</small>` : ""}</span>
     </div>`;
 }
 
