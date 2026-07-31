@@ -20,7 +20,9 @@ function desenhar() {
   const meds = obter().medicoes;
   corpoRef.innerHTML = `
     <p class="nota">Totais por capítulo. O cálculo detalhado por parcela fica no Excel.</p>
-    <button id="add-med" class="btn-add">+ Adicionar medição</button>
+    <button id="add-med" class="btn-add">
+      <svg class="ic ic--sm" aria-hidden="true"><use href="#i-mais"></use></svg>Adicionar medição
+    </button>
     <div id="lista-med">${meds.map(cartao).join("")}</div>`;
 
   ligar();
@@ -36,7 +38,7 @@ function cartao(md) {
     <div class="med cartao ${aberto ? "is-aberto" : ""}" data-id="${md.id}">
       <div class="med__topo">
         <div>
-          <div class="med__cab"><strong>${esc(md.capitulo) || "<em>nova medição</em>"} ${badge}</strong></div>
+          <div class="med__cab"><strong>${esc(md.capitulo) || "<em>nova medição</em>"}</strong> ${badge}</div>
           <div class="med__meta">${numero(md.quantidade)} ${esc(md.unidade)}${md.precoUnit != null ? " × " + euros(md.precoUnit) : ""}</div>
         </div>
         <span class="med__valor">${valor}</span>
@@ -64,7 +66,9 @@ function editor(md) {
         </select></label>
       <label class="campo campo--largo"><span>Notas</span>
         <input type="text" data-acao="notas" value="${esc(md.notas ?? "")}"></label>
-      <button class="btn-eliminar" data-acao="eliminar">Eliminar medição</button>
+      <button class="btn-eliminar" data-acao="eliminar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-lixo"></use></svg>Eliminar medição
+      </button>
     </div>`;
 }
 

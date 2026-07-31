@@ -32,7 +32,9 @@ function desenhar() {
     </div>
     <div class="barra"><div class="barra__cheio" style="width:${pctBarra(t.pago, t.contratado)}%"></div></div>
     <div id="lista-esp">${esps.map(cartaoEsp).join("")}</div>
-    <button class="btn-add" data-acao="addEsp">+ Adicionar especialidade</button>`;
+    <button class="btn-add" data-acao="addEsp">
+      <svg class="ic ic--sm" aria-hidden="true"><use href="#i-mais"></use></svg>Adicionar especialidade
+    </button>`;
   ligar();
 }
 
@@ -63,8 +65,12 @@ function corpoEsp(e) {
           <input type="number" inputmode="decimal" step="any" data-acao="totalEsp" value="${vin(e.totalContratado)}"></label>
       </div>
       ${e.marcos.map(marco).join("") || `<p class="vazio">Sem marcos.</p>`}
-      <button class="btn-add" data-acao="addMarco">+ Adicionar marco</button>
-      <button class="btn-eliminar" data-acao="eliminarEsp">Eliminar especialidade</button>
+      <button class="btn-add" data-acao="addMarco">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-mais"></use></svg>Adicionar marco
+      </button>
+      <button class="btn-eliminar" data-acao="eliminarEsp">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-lixo"></use></svg>Eliminar especialidade
+      </button>
     </div>`;
 }
 
@@ -74,7 +80,7 @@ function marco(m) {
     <div class="marco ${pago ? "is-pago" : ""}" data-marco="${m.id}">
       <div class="marco__topo">
         <button class="marco__pago" data-acao="togglePago" aria-pressed="${pago}">
-          ${pago ? "✓ Pago" : "Marcar pago"}
+          ${pago ? `<svg class="ic ic--sm" aria-hidden="true"><use href="#i-check"></use></svg>Pago` : "Marcar pago"}
         </button>
         <input class="marco__desc" type="text" data-acao="descricao" placeholder="Descrição do marco" value="${esc(m.descricao ?? "")}">
       </div>
@@ -91,7 +97,9 @@ function marco(m) {
         <label class="campo"><span>Data paga</span>
           <input type="date" data-acao="dataPaga" value="${m.dataPaga ?? ""}" ${pago ? "" : "disabled"}></label>
       </div>
-      <button class="btn-eliminar" data-acao="eliminarMarco">Eliminar marco</button>
+      <button class="btn-eliminar" data-acao="eliminarMarco">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-lixo"></use></svg>Eliminar marco
+      </button>
     </div>`;
 }
 

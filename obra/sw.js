@@ -6,7 +6,7 @@
 //     era cache-first e deixava os ficheiros velhos presos indefinidamente.)
 //   • plantas (imagens/pdf) -> CACHE PRIMEIRO (sao pesadas e nunca mudam).
 //   • outros dominios (ex.: script.google.com do sync) -> nao intercetar.
-const CACHE = "obra-braganca-v5";
+const CACHE = "obra-braganca-v6";
 
 const NUCLEO = [
   "./", "index.html", "css/estilo.css",
@@ -54,9 +54,14 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // codigo da app: rede primeiro, cache como salvaguarda (offline)
+  // codigo da app: rede primeiro, cache como salvaguarda (offline).
+  // cache:"no-cache" obriga a revalidar com o servidor. Sem isto o browser
+  // podia servir a copia do SEU cache HTTP sem perguntar nada (quando o
+  // servidor nao manda Cache-Control, o Chrome inventa um prazo de frescura
+  // = 10% da idade do ficheiro) e a versao nova nunca chegava a correr.
+  // Continua barato: a resposta normal e' um 304 sem corpo.
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: "no-cache" })
       .then((r) => {
         if (r.ok) { const copia = r.clone(); caches.open(CACHE).then((c) => c.put(req, copia)); }
         return r;

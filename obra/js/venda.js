@@ -60,11 +60,11 @@ function desenhar() {
 function campoNum(rotulo, campo, valor, sufixo) {
   const v = (valor === null || valor === undefined || Number.isNaN(valor)) ? "" : +(+valor).toFixed(4);
   return `
-    <label class="campo-laranja">
+    <label class="campo-edit">
       <span>${rotulo}</span>
-      <span class="campo-laranja__wrap">
+      <span class="campo-edit__wrap">
         <input type="number" inputmode="decimal" step="any" data-campo="${campo}" value="${v}">
-        <span class="campo-laranja__suf">${sufixo}</span>
+        <span class="campo-edit__suf">${sufixo}</span>
       </span>
     </label>`;
 }

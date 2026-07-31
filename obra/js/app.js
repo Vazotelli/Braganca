@@ -43,16 +43,6 @@ const ECRAS = {
 
 const ECRA_INICIAL = "painel";
 
-// Placeholder temporario (removido em cada passo ao ligar o ecra real).
-function placeholder(container, icone, nome) {
-  container.innerHTML = `
-    <div class="placeholder">
-      <span class="placeholder__icone">${icone}</span>
-      <p><strong>${nome}</strong></p>
-      <p>Em construção.</p>
-    </div>`;
-}
-
 // Mostra o ecra pedido e atualiza cabecalho + estado da tab bar.
 function mostrarEcra(nome) {
   const ecra = ECRAS[nome] || ECRAS[ECRA_INICIAL];

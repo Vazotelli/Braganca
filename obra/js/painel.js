@@ -49,7 +49,9 @@ export function render(contentor) {
       <input id="sync-url" class="sync__url" type="url" inputmode="url" autocomplete="off"
              placeholder="https://script.google.com/macros/s/.../exec" value="${esc(obterUrl())}">
       <div class="painel-acoes">
-        <button class="btn-sec" data-fn="sincronizar">⟳ Sincronizar agora</button>
+        <button class="btn-sec" data-fn="sincronizar">
+          <svg class="ic ic--sm" aria-hidden="true"><use href="#i-sync"></use></svg>Sincronizar agora
+        </button>
       </div>
       <p class="sync__estado" id="sync-estado">${obterUrl()
         ? "Automático: recebe ao abrir, envia ao fechar. Ou toca para sincronizar já."
@@ -58,8 +60,12 @@ export function render(contentor) {
 
     <h2 class="pl-grupo">Dados</h2>
     <div class="painel-acoes">
-      <button class="btn-sec" data-fn="exportar">⬇ Exportar para Excel</button>
-      <button class="btn-sec btn-sec--perigo" data-fn="repor">↺ Repor dados do Excel</button>
+      <button class="btn-sec" data-fn="exportar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-descarregar"></use></svg>Exportar para Excel
+      </button>
+      <button class="btn-sec btn-sec--perigo" data-fn="repor">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-repor"></use></svg>Repor dados do Excel
+      </button>
     </div>`;
 
   contentor.querySelectorAll("[data-ir]").forEach((el) => {
@@ -78,24 +84,31 @@ export function render(contentor) {
   // --- Sincronização ---
   const urlEl = contentor.querySelector("#sync-url");
   const estadoEl = contentor.querySelector("#sync-estado");
+
+  // o pontinho colorido antes do texto vem do CSS (.sync__estado::before)
+  const dizer = (texto, tipo = "") => {
+    estadoEl.className = "sync__estado" + (tipo ? " is-" + tipo : "");
+    estadoEl.textContent = texto;
+  };
+
   urlEl.addEventListener("change", () => definirUrl(urlEl.value));
   contentor.querySelector('[data-fn="sincronizar"]').addEventListener("click", async (ev) => {
     definirUrl(urlEl.value);
-    if (!urlEl.value.trim()) { estadoEl.textContent = "⚠ Falta o URL do Web App."; return; }
+    if (!urlEl.value.trim()) { dizer("Falta o URL do Web App.", "erro"); return; }
     const botao = ev.currentTarget;
-    botao.disabled = true; estadoEl.textContent = "A sincronizar…";
+    botao.disabled = true; dizer("A sincronizar…");
     try {
       const r = await sincronizar();
       if (r.estado === "importado") {
-        estadoEl.textContent = "↓ Dados atualizados a partir da Sheet.";
+        dizer("Dados atualizados a partir da Sheet.", "ok");
         setTimeout(() => window.__ir?.("painel"), 400);
       } else if (r.estado === "enviado") {
-        estadoEl.textContent = "↑ Enviado para a Sheet.";
+        dizer("Enviado para a Sheet.", "ok");
       } else {
-        estadoEl.textContent = "✓ Já está tudo igual.";
+        dizer("Já está tudo igual.", "ok");
       }
     } catch (e) {
-      estadoEl.textContent = "✗ Não deu para sincronizar (vê o URL / a ligação).";
+      dizer("Não deu para sincronizar (vê o URL / a ligação).", "erro");
       console.warn("sync:", e);
     } finally {
       botao.disabled = false;
@@ -120,7 +133,7 @@ function proximosPagamentos() {
       <div class="painel-linha ${urgente ? "is-urgente" : ""}" data-ir="pagamentos">
         <div>
           <div class="painel-linha__t">${esc(p.nome)}</div>
-          <div class="painel-linha__s">${fmtData(p.quando)}${etiquetaDias(p.dias)}</div>
+          <div class="painel-linha__s"><span>${fmtData(p.quando)}</span>${etiquetaDias(p.dias)}</div>
         </div>
         <strong>${euros(p.valor)}</strong>
       </div>`;
@@ -140,16 +153,17 @@ function acoesTerminar() {
       <div class="painel-linha ${urgente ? "is-urgente" : ""}" data-ir="cronograma">
         <div>
           <div class="painel-linha__t">${esc(a.descricao) || "(sem descrição)"}</div>
-          <div class="painel-linha__s">${fmtData(a.dataFim)}${etiquetaDias(a.dias)}</div>
+          <div class="painel-linha__s"><span>${fmtData(a.dataFim)}</span>${etiquetaDias(a.dias)}</div>
         </div>
       </div>`;
   }).join("");
 }
 
+// devolve so' a etiqueta; o espaco entre ela e a data vem do gap do flex
 function etiquetaDias(dias) {
   if (dias === null || dias === undefined) return "";
-  if (dias < 0) return ` · <span class="acao-tag acao-tag--vermelho">atrasada ${-dias} d</span>`;
-  if (dias === 0) return ` · <span class="acao-tag acao-tag--vermelho">hoje</span>`;
-  if (dias <= 5) return ` · <span class="acao-tag acao-tag--vermelho">em ${dias} d</span>`;
-  return ` · em ${dias} d`;
+  if (dias < 0) return `<span class="acao-tag acao-tag--vermelho">atrasada ${-dias} d</span>`;
+  if (dias === 0) return `<span class="acao-tag acao-tag--vermelho">hoje</span>`;
+  if (dias <= 5) return `<span class="acao-tag acao-tag--vermelho">em ${dias} d</span>`;
+  return `<span>em ${dias} d</span>`;
 }

@@ -83,7 +83,9 @@ function desenharMateriais(corpo) {
       </select>
     </div>
 
-    <button id="add-mat" class="btn-add">+ Adicionar material</button>
+    <button id="add-mat" class="btn-add">
+      <svg class="ic ic--sm" aria-hidden="true"><use href="#i-mais"></use></svg>Adicionar material
+    </button>
     <datalist id="lista-caps">${capitulos.map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
     <div id="lista-mat"></div>`;
 
@@ -156,7 +158,7 @@ function linhaMaterial(m) {
           <input type="checkbox" data-acao="adj" ${m.adjudicado ? "checked" : ""}>
         </label>
         <div class="mat__info">
-          <span class="mat__artigo">${esc(m.artigo) || "<em>novo material</em>"} ${badge}</span>
+          <span class="mat__artigo"><span>${esc(m.artigo) || "<em>novo material</em>"}</span>${badge}</span>
           <span class="mat__meta">${qtdTxt} ${esc(m.unidade || "")} × ${m.precoUnit != null ? euros(m.precoUnit) : "—"}</span>
         </div>
         <div class="mat__valores">
@@ -190,7 +192,9 @@ function editor(m) {
         <input type="text" data-acao="fornecedor" value="${esc(m.fornecedor ?? "")}"></label>
       <label class="campo campo--largo"><span>Observações</span>
         <input type="text" data-acao="obs" value="${esc(m.observacoes ?? "")}"></label>
-      <button class="btn-eliminar" data-acao="eliminar">Eliminar material</button>
+      <button class="btn-eliminar" data-acao="eliminar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-lixo"></use></svg>Eliminar material
+      </button>
     </div>`;
 }
 

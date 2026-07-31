@@ -30,7 +30,9 @@ function desenhar() {
   const porFazer = acoes.filter((a) => !a.feito).length;
   contentorRef.innerHTML = `
     <p class="nota">${porFazer} ${porFazer === 1 ? "ação por concluir" : "ações por concluir"}.</p>
-    <button class="btn-add" data-acao="addAcao">+ Adicionar ação</button>
+    <button class="btn-add" data-acao="addAcao">
+      <svg class="ic ic--sm" aria-hidden="true"><use href="#i-mais"></use></svg>Adicionar ação
+    </button>
     <div id="lista-acoes">${acoes.map(cartao).join("") || `<p class="vazio">Sem ações. Adiciona a primeira.</p>`}</div>`;
   ligar();
   atualizarContagens();
@@ -59,15 +61,21 @@ function cartao(a) {
         <input type="checkbox" data-acao="feito" ${a.feito ? "checked" : ""}>
       </label>
       <div class="acao__corpo">
-        <input class="acao__desc" type="text" data-acao="descricao" placeholder="Descrição da ação" value="${esc(a.descricao ?? "")}">
-        <div class="acao__fim">
-          <span class="acao__fim-rot">Fim:</span>
-          <input class="acao__data" type="date" data-acao="dataFim" value="${a.dataFim ?? ""}">
+        <div class="acao__cab">
+          <input class="acao__desc" type="text" data-acao="descricao" placeholder="Descrição da ação" value="${esc(a.descricao ?? "")}" title="${esc(a.descricao ?? "")}">
           ${etiqueta}
-          <button class="acao__reg" data-acao="registo" title="Fotos e notas">📷 <span data-conta="${a.id}">0</span></button>
+        </div>
+        <div class="acao__fim">
+          <input class="acao__data" type="date" data-acao="dataFim" value="${a.dataFim ?? ""}" title="Data de fim">
+          <button class="acao__reg" data-acao="registo" title="Fotos e notas">
+            <svg class="ic ic--sm" aria-hidden="true"><use href="#i-camara"></use></svg>
+            <span data-conta="${a.id}">0</span>
+          </button>
         </div>
       </div>
-      <button class="acao__del" data-acao="eliminarAcao" aria-label="Eliminar">✕</button>
+      <button class="acao__del btn-ic" data-acao="eliminarAcao" aria-label="Eliminar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-fechar"></use></svg>
+      </button>
     </div>`;
 }
 
@@ -90,7 +98,8 @@ function ligar() {
       else if (campo === "descricao") a.descricao = el.value;
     });
     // so redesenhar em mudancas que reordenam (feito/data); descricao nao reordena
-    if (campo !== "descricao") desenhar();
+    if (campo === "descricao") el.title = el.value;   // tooltip acompanha o texto cortado
+    else desenhar();
   });
 
   c.addEventListener("click", (ev) => {

@@ -92,11 +92,14 @@ export async function abrir(acaoId, titulo) {
   el.innerHTML = `
     <div class="visor__topo">
       <span class="visor__titulo">Registo — ${esc(titulo || "")}</span>
-      <button class="visor__fechar" aria-label="Fechar">✕</button>
+      <button class="visor__fechar" aria-label="Fechar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-fechar"></use></svg>
+      </button>
     </div>
     <div class="visor__corpo reg">
       <div class="reg__novo">
-        <label class="reg__addfoto">📷 Adicionar foto
+        <label class="reg__addfoto">
+          <svg class="ic ic--sm" aria-hidden="true"><use href="#i-camara"></use></svg>Adicionar foto
           <input type="file" accept="image/*" capture="environment" multiple hidden>
         </label>
         <div class="reg__previews"></div>
@@ -132,7 +135,7 @@ export async function abrir(acaoId, titulo) {
 
   function desenharPreviews() {
     previews.innerHTML = pendentes.map((p, i) =>
-      `<span class="reg__prev"><img src="${p.url}"><button data-i="${i}" aria-label="Remover">✕</button></span>`).join("");
+      `<span class="reg__prev"><img src="${p.url}"><button data-i="${i}" aria-label="Remover"><svg class="ic" aria-hidden="true"><use href="#i-fechar"></use></svg></button></span>`).join("");
     previews.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
       const i = +b.dataset.i;
       URL.revokeObjectURL(pendentes[i].url);

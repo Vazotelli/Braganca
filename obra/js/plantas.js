@@ -33,7 +33,7 @@ function ePdf(f) { return f.toLowerCase().endsWith(".pdf"); }
 function cartao(p) {
   const src = BASE + p.ficheiro;
   const mini = ePdf(p.ficheiro)
-    ? `<div class="pl-mini pl-mini--pdf">PDF</div>`
+    ? `<div class="pl-mini pl-mini--pdf"><svg class="ic" aria-hidden="true"><use href="#i-ficheiro"></use></svg></div>`
     : `<img class="pl-mini" src="${src}" alt="" loading="lazy">`;
   return `
     <button class="pl-item" data-abrir="${p.id}">
@@ -42,7 +42,7 @@ function cartao(p) {
         <span class="pl-titulo">${esc(p.titulo)}</span>
         <span class="pl-cont">${esc(p.conteudo || p.especialidade)}</span>
       </span>
-      <span class="pl-seta">›</span>
+      <span class="pl-seta"><svg class="ic ic--sm" aria-hidden="true"><use href="#i-seta"></use></svg></span>
     </button>`;
 }
 
@@ -159,7 +159,9 @@ function criarOverlay(titulo) {
   el.innerHTML = `
     <div class="visor__topo">
       <span class="visor__titulo">${esc(titulo)}</span>
-      <button class="visor__fechar" aria-label="Fechar">✕</button>
+      <button class="visor__fechar" aria-label="Fechar">
+        <svg class="ic ic--sm" aria-hidden="true"><use href="#i-fechar"></use></svg>
+      </button>
     </div>
     <div class="visor__corpo"></div>`;
   document.body.appendChild(el);
