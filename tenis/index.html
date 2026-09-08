@@ -200,8 +200,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 .ex.done{border-color:rgba(0,214,143,.35)}
 .ex.blocked{opacity:.55}
 .ex-head{display:flex;align-items:center;gap:12px;padding:12px;min-height:64px}
-.ex-head .ill{width:64px;height:64px;flex:none;border-radius:10px;background:var(--card2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ex-head .ill{width:88px;height:48px;flex:none;border-radius:10px;background:var(--card2);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:2px}
 .ex-head .ill svg{width:100%;height:100%}
+.ex-head .ill svg text{display:none}
 .ex-head .nm{font-weight:700;font-size:15px;line-height:1.2}
 .ex-head .tg{font-size:12.5px;color:var(--muted);margin-top:3px}
 .ex-head .chev{color:var(--dim);transition:transform .2s}
@@ -1366,9 +1367,73 @@ document.addEventListener('change',e=>{
   if(el.dataset.actInput==='hrhr'){/* guardado no hsave */}
 });
 
-// ============================== SVG (etapa 3 substitui) ==============================
+// ============================== ILUSTRAÇÕES SVG ==============================
+// Estilo: linha simples monocromática (texto) com um acento (azul = segmento-chave/movimento,
+// verde = alvo). Boneco articulado com a posição-chave; duas posições + seta onde faz sentido.
+// Campo visto de cima para spider, split-step e alvos de serviço. viewBox 120×60.
+const _seg=(a,b)=>`M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;
+const _p=(d,color)=>`<path d="${d}"${color?` stroke="${color}"`:''}/>`;
+const AC='var(--blue)',GR='var(--green)',MU='var(--muted)',LN='var(--line2)',YE='var(--yellow)';
+// p: {head,sh,hip,legs:[[knee,foot]..],arms:[[elb,hand]..],op} · acc: {torso,legs:[i],arms:[i]}
+function stick(p,acc={}){
+  let s=`<g${p.op?` opacity="${p.op}"`:''}>`;
+  s+=`<circle cx="${p.head[0]}" cy="${p.head[1]}" r="4"/>`;
+  s+=_p(_seg(p.sh,p.hip),acc.torso?AC:null);
+  (p.legs||[]).forEach((l,i)=>s+=_p(_seg(p.hip,l[0])+_seg(l[0],l[1]),acc.legs&&acc.legs.includes(i)?AC:null));
+  (p.arms||[]).forEach((a,i)=>s+=_p(_seg(p.sh,a[0])+_seg(a[0],a[1]),acc.arms&&acc.arms.includes(i)?AC:null));
+  return s+'</g>';
+}
+function arrow(x1,y1,x2,y2,color=AC,dash=''){const a=Math.atan2(y2-y1,x2-x1),h=4;const f=n=>n.toFixed(1);const p1=[x2-h*Math.cos(a-.5),y2-h*Math.sin(a-.5)],p2=[x2-h*Math.cos(a+.5),y2-h*Math.sin(a+.5)];return `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="${color}"${dash?` stroke-dasharray="${dash}"`:''}/><path d="M${f(p1[0])} ${f(p1[1])}L${x2} ${y2}L${f(p2[0])} ${f(p2[1])}" stroke="${color}"/>`}
+const ground=(y=54)=>`<path d="M6 ${y}H114" stroke="${LN}" stroke-width="1.5"/>`;
+const label=(x,y,t,color=MU,size=5)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="700" fill="${color}" stroke="none" font-family="inherit">${t}</text>`;
+// campo inteiro (paisagem): rede ao centro em x=60; servidor à esquerda
+const courtFull=()=>`<g stroke="${MU}" stroke-width="1.1"><rect x="8" y="6" width="104" height="48"/><path d="M8 12H112M8 48H112M32 12V48M88 12V48M32 30H88M8 30h3M112 30h-3"/></g><path d="M60 3V57" stroke="var(--text)" stroke-width="1.6"/>`;
+// meio campo (retrato): rede em cima y=4, linha de fundo y=56
+const courtHalf=()=>`<g stroke="${MU}" stroke-width="1.1"><rect x="36" y="4" width="48" height="52"/><path d="M42 4V56M78 4V56M42 32H78M60 4V32M60 56v-3"/></g><path d="M33 4H87" stroke="var(--text)" stroke-width="1.6"/>`;
+const runner=(dy=0,acc={})=>stick({head:[56,8+dy],sh:[55,14+dy],hip:[52,30+dy],legs:[[[62,36+dy],[67,46+dy]],[[45,40+dy],[38,51+dy]]],arms:[[[62,18+dy],[68,12+dy]],[[48,20+dy],[44,28+dy]]]},acc);
+const SVGS={
+  afundo_bulgaro:()=>`<rect x="40" y="40" width="12" height="14" rx="1" stroke="${MU}"/><rect x="96" y="40" width="12" height="14" rx="1" stroke="${MU}"/>`+ground()
+    +stick({head:[28,14],sh:[28,20],hip:[28,36],legs:[[[27,45],[27,54]],[[37,42],[44,40]]],arms:[[[25,28],[27,35]]]})
+    +stick({head:[82,22],sh:[82,28],hip:[85,40],legs:[[[78,47],[78,54]],[[93,48],[100,40]]],arms:[[[79,35],[78,41]]]},{legs:[0]})+arrow(56,26,68,26),
+  ponte_gluteo:()=>ground()+stick({head:[18,48],sh:[26,47],hip:[54,37],legs:[[[66,33],[70,54]],[[72,31],[90,25]]],arms:[[[34,51],[44,53]]]},{torso:true})+arrow(54,31,54,21)+label(64,20,'anca alta',AC),
+  nordico:()=>ground()+`<rect x="72" y="48" width="10" height="6" rx="1" stroke="${MU}"/>`
+    +stick({head:[56,17],sh:[56,24],hip:[56,40],legs:[[[56,54],[72,54]]],arms:[[[50,30],[48,38]]],op:.35})
+    +stick({head:[29,27],sh:[34,32],hip:[48,44],legs:[[[56,54],[72,54]]],arms:[[[26,38],[24,46]]]},{torso:true})+arrow(52,14,36,20)+label(96,30,'anca esticada',AC),
+  gemeos:()=>ground()+`<rect x="30" y="44" width="26" height="10" stroke="${MU}"/><rect x="70" y="44" width="26" height="10" stroke="${MU}"/>`
+    +stick({head:[48,8],sh:[48,14],hip:[48,30],legs:[[[48,38],[47,44]],[[54,36],[56,42]]],arms:[[[44,22],[45,29]]]})+_p('M42 48L47 44L52 44',AC)
+    +stick({head:[88,4],sh:[88,10],hip:[88,26],legs:[[[88,34],[88,40]],[[94,32],[96,38]]],arms:[[[84,18],[85,25]]]})+_p('M84 36L88 40L92 44',AC)+arrow(64,44,64,34),
+  prancha_lat:()=>ground()+`<path d="M26 38L100 54" stroke="${LN}" stroke-dasharray="2 3" stroke-width="1"/>`+`<circle cx="25" cy="34" r="4"/>`+_p('M44 54H30L32 40')+_p('M32 40L66 46L84 50L100 54',AC)+_p('M32 40L32 30L32 22')+label(66,22,'ombro · anca · pé em linha',AC),
+  deadbug:()=>ground()+`<circle cx="14" cy="48" r="4"/>`+_p('M22 49L54 50')+_p('M22 49L22 38L22 28')+_p('M22 49L12 42L4 38',AC)+_p('M54 50L54 34L68 34')+_p('M54 50L76 47L98 44',AC)+arrow(8,34,3,31)+arrow(94,40,102,39)+label(60,18,'lombar colada ao chão',MU),
+  remada:()=>ground()+`<path d="M28 22H104M28 22V54M104 22V54" stroke="${MU}" stroke-width="1.4"/>`+`<circle cx="42" cy="26" r="4"/>`+_p('M50 30L74 42L88 48L100 54')+_p('M50 30L40 26L54 22',AC)+_p('M50 30L46 25L58 22',AC)+arrow(64,44,64,30,AC,'2 2')+label(64,58,'peito à barra · omoplatas juntas',AC),
+  chinup:()=>`<path d="M26 12H100M26 12V58M100 12V58" stroke="${MU}" stroke-width="1.4"/>`
+    +stick({head:[40,8],sh:[40,17],hip:[40,31],legs:[[[39,41],[38,50]],[[42,41],[43,50]]],arms:[[[33,19],[34,12]],[[47,19],[46,12]]]},{arms:[0,1]})
+    +stick({head:[84,21],sh:[84,28],hip:[84,42],legs:[[[83,50],[82,58]],[[86,50],[87,58]]],arms:[[[80,20],[78,12]],[[88,20],[90,12]]]})+arrow(62,20,62,36)+label(62,44,'4 s',AC,6),
+  flexao:()=>ground()+`<circle cx="21" cy="35" r="4" opacity=".35"/><path d="M29 37L62 42L82 48L100 54M29 37L30 46L30 54" opacity=".35"/>`+`<circle cx="21" cy="45" r="4"/>`+_p('M29 47L62 48L82 50L100 54')+_p('M29 47L38 53L30 54',AC)+arrow(12,38,12,45)+label(64,30,'corpo em bloco',MU),
+  ytw:()=>[20,60,100].map((x,i)=>`<circle cx="${x}" cy="9" r="4"/>`+_p(`M${x} 13V40M${x} 40L${x-4} 56M${x} 40L${x+4} 56`)+_p(i===0?`M${x} 15L${x-11} 4M${x} 15L${x+11} 4`:i===1?`M${x} 15H${x-15}M${x} 15H${x+15}`:`M${x} 15L${x-9} 22L${x-12} 12M${x} 15L${x+9} 22L${x+12} 12`,AC)+label(x-17,9,['Y','T','W'][i],AC,7)).join(''),
+  agach_salto:()=>ground()+stick({head:[30,16],sh:[30,22],hip:[34,36],legs:[[[26,44],[27,54]],[[34,45],[36,54]]],arms:[[[36,30],[41,36]]]})
+    +stick({head:[86,6],sh:[86,12],hip:[86,28],legs:[[[84,36],[82,44]],[[90,36],[92,44]]],arms:[[[80,8],[78,2]],[[92,8],[94,2]]]},{legs:[0,1]})+`<path d="M80 48v4M86 47v5M92 48v4" stroke="${MU}"/>`+arrow(60,38,60,18),
+  skater:()=>ground()+stick({head:[30,12],sh:[30,18],hip:[30,34],legs:[[[27,44],[25,54]],[[38,40],[44,46]]],arms:[[[24,26],[20,32]],[[36,24],[40,30]]]},{legs:[0]})
+    +stick({head:[90,12],sh:[90,18],hip:[90,34],legs:[[[93,44],[95,54]],[[82,40],[76,46]]],arms:[[[96,26],[100,32]],[[84,24],[80,30]]]},{legs:[0]})+arrow(54,30,48,30)+arrow(66,30,72,30)+label(60,24,'estabiliza 1 s',MU),
+  corda:()=>ground()+stick({head:[60,10],sh:[60,16],hip:[60,32],legs:[[[58,41],[57,49]],[[62,41],[63,49]]],arms:[[[53,28],[48,31]],[[67,28],[72,31]]]})+`<path d="M48 31Q60 80 72 31" stroke="${AC}"/><path d="M48 31Q60 -18 72 31" stroke="${AC}" stroke-dasharray="2 3" opacity=".45"/>`,
+  mobilidade:()=>ground()+stick({head:[60,12],sh:[60,18],hip:[60,34],legs:[[[57,44],[56,54]],[[63,44],[64,54]]],arms:[[[64,10],[70,3]],[[56,26],[53,33]]]},{arms:[0]})+`<circle cx="60" cy="18" r="15" stroke="${AC}" stroke-dasharray="3 3" opacity=".7"/>`+_p('M43 14l2 5 3-4',AC),
+  sombra_reves:()=>ground()+stick({head:[30,14],sh:[30,20],hip:[30,36],legs:[[[26,46],[24,54]],[[34,46],[36,54]]],arms:[[[22,26],[16,30]]]})+`<path d="M16 30L10 36" /><ellipse cx="7" cy="40" rx="4" ry="6" transform="rotate(-45 7 40)" fill="${AC}" opacity=".7" stroke="${AC}"/>`
+    +stick({head:[90,14],sh:[90,20],hip:[90,36],legs:[[[86,46],[84,54]],[[94,46],[96,54]]],arms:[[[98,14],[106,8]]]},{arms:[0]})+`<path d="M106 8L110 4"/><ellipse cx="113" cy="2" rx="4" ry="6" transform="rotate(45 113 2)" fill="${AC}" opacity=".7" stroke="${AC}"/>`+arrow(50,24,66,24)+label(60,59.5,'ombros rodam · braço estica',MU,4.5),
+  splitstep:()=>courtHalf()+`<circle cx="60" cy="50" r="2.6" fill="${AC}" stroke="none"/><circle cx="60" cy="50" r="6" stroke="${AC}" stroke-dasharray="2 2" opacity=".7"/>`+arrow(52,50,42,50)+arrow(68,50,78,50)+label(14,50,'3 passos',AC)+label(106,50,'3 passos',AC)+label(60,60,'split-step no tempo do adversário',MU,4.5),
+  spider:()=>courtHalf()+[[42,56],[78,56],[42,44],[78,44],[42,32],[78,32],[60,32],[60,18]].map(b=>`<path d="M60 56L${b[0]} ${b[1]}" stroke="${AC}" stroke-width="1" opacity=".55"/><circle cx="${b[0]}" cy="${b[1]}" r="2.2" fill="${GR}" stroke="none"/>`).join('')+`<circle cx="60" cy="56" r="3" fill="${AC}" stroke="none"/>`+label(16,30,'8 bolas',GR)+label(16,37,'ida e volta',MU)+label(16,44,'ao centro',MU),
+  servico_alvos:()=>courtFull()
+    +`<rect x="78" y="40" width="10" height="8" fill="${GR}" opacity=".55" stroke="none"/><rect x="80" y="22" width="8" height="8" fill="${AC}" opacity=".5" stroke="none"/>`
+    +`<path d="M5 38Q50 33 82 27" stroke="${AC}" stroke-dasharray="2 3" stroke-width="1.2" opacity=".7"/><circle cx="5" cy="38" r="2.2" fill="${AC}" stroke="none" opacity=".6"/>`
+    +`<path d="M5 22Q52 40 83 45" stroke="${GR}" stroke-width="1.6"/><circle cx="5" cy="22" r="2.8" fill="${GR}" stroke="none"/>`
+    +`<circle cx="108" cy="42" r="2.4" fill="${YE}" stroke="none"/>`+arrow(108,46,108,53,YE)
+    +label(83,53,'aberto',GR,4.5)+label(84,19,'T',AC,5)+label(16,4.5,'canhoto',GR,4.5)+label(104,4.5,'destro',YE,4.5)+label(60,59,'slice canhoto: lado da vantagem para o revés do destro',MU,4),
+  corrida:()=>ground()+runner(0,{legs:[0]})+`<path d="M24 20h8M20 28h8" stroke="${MU}"/>`,
+  intervalos:()=>ground(48)+runner(-6,{legs:[0]})+[0,1,2].map(i=>`<rect x="${14+i*34}" y="51" width="10" height="5" fill="var(--red)" stroke="none" opacity=".85"/><rect x="${24+i*34}" y="51" width="22" height="5" fill="${MU}" stroke="none" opacity=".35"/>`).join('')+label(19,59,'30',MU,4)+label(35,59,'60 s',MU,4),
+  jogo:()=>courtFull()+`<circle cx="6" cy="40" r="2.8" fill="${AC}" stroke="none"/><circle cx="114" cy="22" r="2.4" fill="${MU}" stroke="none"/><path d="M8 40Q60 20 104 16" stroke="${GR}" stroke-width="1.5" stroke-dasharray="3 2"/>`+label(60,59,'sets completos, não peloteio',MU,4.5),
+  aula:()=>`<ellipse cx="46" cy="24" rx="12" ry="16" transform="rotate(-30 46 24)"/><path d="M54 38L68 56"/><path d="M38 14l16 20M40 30l12-14M44 10l14 22M36 22l14-8" stroke="${LN}" stroke-width="1"/><circle cx="88" cy="40" r="7" fill="${GR}" stroke="none"/><path d="M83 35q5 5 0 10M93 35q-5 5 0 10" stroke="var(--bg)" stroke-width="1.2"/>`
+};
 function svgFor(key,size){
-  return `<svg viewBox="0 0 120 60" fill="none" stroke="var(--text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="60" cy="14" r="6"/><path d="M60 20v18M60 26l-12 8M60 26l12 8M60 38l-8 14M60 38l8 14"/><path d="M10 56h100" stroke="var(--line2)"/></svg>`;
+  const fn=SVGS[key]||SVGS.mobilidade;
+  return `<svg viewBox="0 0 120 60" fill="none" stroke="var(--text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="${size==='big'?'big':'thumb'}">${fn()}</svg>`;
 }
 
 // ============================== INIT ==============================
