@@ -963,34 +963,52 @@ function healthDraft(d){ // valores atuais do formulário → objeto
 // ---------- Prints da app do relógio ----------
 // Guardados no próprio ficheiro, reduzidos a 560px e JPEG 0.5, para caberem no localStorage.
 const SHOT_MAX_W=560,SHOT_Q=0.5,SHOT_KEEP_DAYS=21,SHOT_PER_DAY=4;
+// Uma fotografia real da câmara (12+ MP) é muito maior que um print de ecrã (a app foi testada
+// com prints ~1.5 MP). Ler pixels a essa resolução (getImageData) é o passo pesado: um canvas do
+// tamanho nativo de uma foto de 12 MP chega aos ~190 MB só de buffer, o que trava ou é morto por
+// falta de memória num iPhone, em silêncio, sem erro nenhum. A correção: nunca ler pixels acima de
+// OCR_MAX_SIDE, seja qual for o tamanho original.
+const OCR_MAX_SIDE=1600;
+function fitBox(w,h,maxSide){const m=Math.max(w,h);if(m<=maxSide)return {w,h};const s=maxSide/m;return {w:Math.max(1,Math.round(w*s)),h:Math.max(1,Math.round(h*s))}}
 function addShot(d,file){
   if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
+  toast('A processar a imagem…',6000);
+  const fail=(msg)=>{toast(msg,5000);console.warn('addShot:',msg)};
+  const watchdog=setTimeout(()=>fail('Demorou demasiado a processar. Tenta uma imagem mais pequena (print de ecrã em vez de foto).'),15000);
   const fr=new FileReader();
   fr.onload=()=>{const img=new Image();
     img.onload=()=>{
-      // Lê os números na resolução original, antes de reduzir para guardar
-      let read={};
-      try{const f=document.createElement('canvas');f.width=img.width;f.height=img.height;
-        f.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0);
-        read=readShot(ocrImage(f),img.width,img.height);
-      }catch(err){console.warn('OCR falhou',err)}
-      const sc=Math.min(1,SHOT_MAX_W/img.width);const w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
-      const c=document.createElement('canvas');c.width=w;c.height=hh;
-      const cx=c.getContext('2d');cx.drawImage(img,0,0,w,hh);
-      let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){toast('Não consegui processar a imagem');return}
-      S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
-      if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
-      arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
-      pruneShots();
-      if(!saveNow()){arr.pop();render();return}
-      const n=applyRead(d,read);
-      render();
-      toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
+      clearTimeout(watchdog);
+      try{
+        // OCR só num canvas limitado: a nitidez para ler dígitos não precisa da resolução nativa.
+        let read={};
+        try{
+          const o=fitBox(img.width,img.height,OCR_MAX_SIDE);
+          const f=document.createElement('canvas');f.width=o.w;f.height=o.h;
+          f.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,o.w,o.h);
+          read=readShot(ocrImage(f),o.w,o.h);
+        }catch(err){console.warn('OCR falhou',err)}
+        // Guardar: reduzido a SHOT_MAX_W. drawImage de uma imagem grande para um canvas pequeno é
+        // barato (o browser faz o downscale); o que era caro era o passo de cima, já resolvido.
+        const sc=Math.min(1,SHOT_MAX_W/img.width);
+        const w=Math.max(1,Math.round(img.width*sc)),hh=Math.max(1,Math.round(img.height*sc));
+        const c=document.createElement('canvas');c.width=w;c.height=hh;
+        c.getContext('2d').drawImage(img,0,0,w,hh);
+        let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){fail('Não consegui reduzir a imagem: '+(e&&e.message||e));return}
+        S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
+        if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
+        arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
+        pruneShots();
+        if(!saveNow()){arr.pop();render();return}
+        const n=applyRead(d,read);
+        render();
+        toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
+      }catch(err){fail('Falhou a processar a imagem: '+(err&&err.message||err))}
     };
-    img.onerror=()=>toast('Não consegui ler a imagem');
+    img.onerror=()=>{clearTimeout(watchdog);fail('Não consegui ler a imagem. Tenta outro formato (PNG ou JPEG).')};
     img.src=fr.result;
   };
-  fr.onerror=()=>toast('Não consegui ler o ficheiro');
+  fr.onerror=()=>{clearTimeout(watchdog);fail('Não consegui ler o ficheiro')};
   fr.readAsDataURL(file);
 }
 function pruneShots(){ // os números ficam para sempre; as imagens só os últimos 21 dias
