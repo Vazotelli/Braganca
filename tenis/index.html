@@ -847,7 +847,12 @@ function renderSaude(){
     <div class="sub mt16">Prints da app <span class="dim" style="text-transform:none;letter-spacing:0">${shots.length}/4</span></div>
     <div class="shots mt8">${shots.map(s=>`<div class="shot"><img src="${s.data}" alt="print de ${esc(d)}" data-act="shot-open" data-id="${s.id}"><button class="shot-x" data-act="shot-del" data-id="${s.id}" aria-label="Apagar">${ICON.x}</button></div>`).join('')}
       ${shots.length<4?`<label class="shot add">＋<input type="file" accept="image/*" class="hide" data-act-input="shot-add"></label>`:''}</div>
-    <div class="xs dim mt4">Guardados reduzidos, dentro do ficheiro. Não leio os números do print: escreve-os em cima.</div>
+    ${(()=>{const rd=shotRead(d);const bits=[];
+      if(rd.sleepHH!=null||rd.sleepMM!=null)bits.push('sono '+(rd.sleepHH||0)+'h'+pad(rd.sleepMM||0));
+      for(const k of ['sleepScore','rhr','sleepHr'])if(rd[k]!=null)bits.push(READ_LABEL[k]+' '+rd[k]);
+      return bits.length?`<div class="alert g mt8" style="margin-left:0;margin-right:0">${ICON.check}<div><b>Lido do print</b>${bits.join(' · ')}. Já está escrito em cima; corrige se algum valor estiver errado.</div></div>`
+        :(shots.length?`<div class="xs dim mt4">Não reconheci números neste print. Escreve-os em cima.</div>`:'')})()}
+    <div class="xs dim mt4">Leio os números do ecrã do Sono e do da Frequência cardíaca. Guardados reduzidos, dentro do ficheiro.</div>
 
     <button class="btn primary mt16" data-act="hsave">${S.health[d]?'Atualizar check-in':'Guardar check-in'}</button>
   </div>`;
@@ -902,16 +907,24 @@ function addShot(d,file){
   const fr=new FileReader();
   fr.onload=()=>{const img=new Image();
     img.onload=()=>{
+      // Lê os números na resolução original, antes de reduzir para guardar
+      let read={};
+      try{const f=document.createElement('canvas');f.width=img.width;f.height=img.height;
+        f.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0);
+        read=readShot(ocrImage(f),img.width,img.height);
+      }catch(err){console.warn('OCR falhou',err)}
       const sc=Math.min(1,SHOT_MAX_W/img.width);const w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
       const c=document.createElement('canvas');c.width=w;c.height=hh;
       const cx=c.getContext('2d');cx.drawImage(img,0,0,w,hh);
       let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){toast('Não consegui processar a imagem');return}
       S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
       if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
-      arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString()});
+      arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
       pruneShots();
       if(!saveNow()){arr.pop();render();return}
-      render();toast('Print guardado ('+Math.round(data.length/1024)+' KB)');
+      const n=applyRead(d,read);
+      render();
+      toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
     };
     img.onerror=()=>toast('Não consegui ler a imagem');
     img.src=fr.result;
@@ -924,6 +937,26 @@ function pruneShots(){ // os números ficam para sempre; as imagens só os últi
   for(const k of Object.keys(S.shots))if(k<lim||!S.shots[k].length)delete S.shots[k];
 }
 function shotsBytes(){let n=0;for(const a of Object.values(S.shots||{}))for(const s of a)n+=s.data.length;return n}
+const READ_LABEL={sleepHH:'sono (h)',sleepMM:'sono (min)',sleepScore:'pontuação de sono',rhr:'FC repouso',sleepHr:'FC no sono'};
+// Guarda no check-in do dia o que foi lido, sem mexer no que já lá está.
+// Vai ao estado e não ao DOM, senão o render seguinte apagava tudo.
+function applyRead(d,read){
+  const form=$('#scr-saude')?healthDraft(d):null; // o que está escrito no ecrã agora
+  const cur=Object.assign({},S.health[d]||{},form?{sleepH:form.sleepH,sleepScore:form.sleepScore,rhr:form.rhr,sleepHr:form.sleepHr,pain:form.pain,state:form.state}:{});
+  let n=0;
+  if(cur.sleepH==null&&(read.sleepHH!=null||read.sleepMM!=null)){
+    cur.sleepH=Math.round(((read.sleepHH||0)+(read.sleepMM||0)/60)*100)/100;n++;
+  }
+  for(const k of ['sleepScore','rhr','sleepHr'])if(read[k]!=null&&cur[k]==null){cur[k]=read[k];n++}
+  if(!n)return 0;
+  cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
+  if(cur.state==null)cur.state=2;
+  cur.at=new Date().toISOString();
+  S.health[d]=cur;saveNow();
+  return n;
+}
+// Junta o que os prints do dia leram, para mostrar no ecrã
+function shotRead(d){const out={};for(const s of (S.shots&&S.shots[d])||[])for(const k in (s.read||{}))if(out[k]==null)out[k]=s.read[k];return out}
 
 // ============================== SESSÃO ATIVA ==============================
 const RPE_DESC={1:'muito leve',2:'leve',3:'moderado',4:'algo difícil',5:'difícil',6:'',7:'muito difícil',8:'',9:'quase máx.',10:'máximo'};
@@ -1740,6 +1773,161 @@ async function importCSVFile(file){
     S.ui.importMsg=`<span class="g">Importado</span>: ${nd} dias com FC/sono, ${workouts.length} treinos (${rows.length-1} linhas).`;
     S.ext.imports.push({when:new Date().toISOString(),source:src,summary:nd+' dias, '+workouts.length+' treinos'});save();render();
   }catch(e){console.warn(e);importStatus('<span class="r">Falhou:</span> '+esc(e.message))}
+}
+
+// ============================== LEITURA DOS PRINTS (OCR) ==============================
+// Moldes dos dígitos 0-9 tirados dos prints reais da app do relógio, normalizados a 12x16
+// com cobertura 0-9 por célula. Sem bibliotecas: é reconhecimento por comparação de moldes.
+const DIG_W=12,DIG_H=16,DIG_MAXD=DIG_W*DIG_H*9;
+const DIGITS={
+  0:'000139963000004899999610038987679960069840016992389610004896499500003697597300000599997300000599997300000599797300000599597500001598499500003797379630005894059854356972016997789840001378975300',
+  1:'000000599999000559999999059999959999999955009999995000009999500000009999000000009999000000009999000000009999000000009999000000009999000000009999000000009999000000009999000000009999000000009999',
+  2:'000366764100017999999830089986689991599500005995799000000998232000002996000000005995000000049970000000399810000003998100000069981000001799710000018996000000189940000000699999999999699999999999',
+  3:'000269982000004899999820049986689991189710005994188500003994000000003992000013348970000069999200000058899950000013337992000000001898444100000898299500001898189873358995028999999970001357955200',
+  4:'000000699910000003999910000007989910000039939910000199239910000696039910002892039910007930039910059600039910199200039910797111149921999999999999999999999999000000039910000000039910000000039910',
+  5:'079999999992099999999995099755555550099000000000099000000000099000000000299059997200599886689982599200002997252000000599000000000599000000000599797000000599599200002997079975559992005899998520',
+  6:'000179997300005999999950029986357994089830003697199600001332599300221000797328999610997599889992999941014897899600002699799400000599499500001599199620003698069963335895018997779983001488987520',
+  7:'999999999997999999999999555555555997000000002992000000007970000000029920000000079700000000399200000000995000000005990000000009950000000059900000000099500000000599000000002995000000008980000000',
+  8:'000589995000018999999930069995589992099930007993099900006995089910007992029983269980002899999300038999999950099950029995599600003998999500002999599810004998299983259995039999999981001568965300',
+  9:'000269861000014899999400159977789940289740017991498400003895998300003896498400003899399740037999179987789899017999993799000255500796000000003895288610007991179764479960027998899820001468864100'
+};
+// Binariza (claro sobre escuro) e devolve componentes ligados
+function ocrComponents(bin,W,H){
+  const lab=new Int32Array(W*H).fill(-1),st=new Int32Array(W*H),comps=[];
+  for(let j=0;j<W*H;j++){
+    if(!bin[j]||lab[j]>=0)continue;
+    let sp=0;st[sp++]=j;lab[j]=comps.length;
+    let x0=j%W,x1=x0,y0=(j/W)|0,y1=y0,n=0;
+    while(sp>0){const k=st[--sp],x=k%W,y=(k/W)|0;n++;
+      if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      if(x>0&&bin[k-1]&&lab[k-1]<0){lab[k-1]=comps.length;st[sp++]=k-1}
+      if(x<W-1&&bin[k+1]&&lab[k+1]<0){lab[k+1]=comps.length;st[sp++]=k+1}
+      if(y>0&&bin[k-W]&&lab[k-W]<0){lab[k-W]=comps.length;st[sp++]=k-W}
+      if(y<H-1&&bin[k+W]&&lab[k+W]<0){lab[k+W]=comps.length;st[sp++]=k+W}
+    }
+    comps.push({x:x0,y:y0,w:x1-x0+1,h:y1-y0+1,n});
+  }
+  return comps;
+}
+function ocrNorm(bin,W,bx,by,bw,bh){
+  let s='';
+  for(let gy=0;gy<DIG_H;gy++)for(let gx=0;gx<DIG_W;gx++){
+    const sx0=bx+Math.floor(gx*bw/DIG_W),sx1=Math.max(bx+Math.floor((gx+1)*bw/DIG_W),sx0+1);
+    const sy0=by+Math.floor(gy*bh/DIG_H),sy1=Math.max(by+Math.floor((gy+1)*bh/DIG_H),sy0+1);
+    let on=0,tot=0;
+    for(let y=sy0;y<sy1;y++)for(let x=sx0;x<sx1;x++){tot++;if(bin[y*W+x])on++}
+    s+=Math.min(9,Math.round(9*on/Math.max(1,tot)));
+  }
+  return s;
+}
+function ocrClassify(g){
+  let b1=1e9,b2=1e9,pick=null;
+  for(const d in DIGITS){let s=0;const t=DIGITS[d];
+    for(let i=0;i<t.length;i++)s+=Math.abs(+g[i]-+t[i]);
+    if(s<b1){b2=b1;b1=s;pick=d}else if(s<b2)b2=s;}
+  return {d:pick,dist:b1,margin:b2-b1};
+}
+// Um componente demasiado largo são dígitos colados: parte nos mínimos da projeção vertical
+function ocrSplit(bin,W,c){
+  const k=Math.round(c.w/(c.h*0.62));
+  if(k<2||k>4)return [c];
+  const col=new Int32Array(c.w);
+  for(let x=0;x<c.w;x++){let n=0;for(let y=0;y<c.h;y++)if(bin[(c.y+y)*W+c.x+x])n++;col[x]=n}
+  const cuts=[];
+  for(let i=1;i<k;i++){
+    const t=Math.round(i*c.w/k);const lo=Math.max(1,t-Math.round(c.w/(k*3))),hi=Math.min(c.w-2,t+Math.round(c.w/(k*3)));
+    let best=t,bv=1e9;for(let x=lo;x<=hi;x++)if(col[x]<bv){bv=col[x];best=x}
+    cuts.push(best);
+  }
+  const parts=[];let prev=0;
+  for(const cut of cuts.concat([c.w])){
+    const w=cut-prev;if(w<3){prev=cut;continue}
+    let y0=c.h,y1=0;
+    for(let y=0;y<c.h;y++)for(let x=prev;x<cut;x++)if(bin[(c.y+y)*W+c.x+x]){if(y<y0)y0=y;if(y>y1)y1=y;break}
+    if(y1<y0){prev=cut;continue}
+    parts.push({x:c.x+prev,y:c.y+y0,w,h:y1-y0+1,n:0});
+    prev=cut;
+  }
+  return parts.length>=2?parts:[c];
+}
+// Lê todos os números da imagem. Devolve [{v,x,y,w,h,gh}] ordenados por posição.
+function ocrImage(cv){
+  const cx=cv.getContext('2d',{willReadFrequently:true});
+  const W=cv.width,H=cv.height,d=cx.getImageData(0,0,W,H).data;
+  const bin=new Uint8Array(W*H);
+  for(let i=0,j=0;i<d.length;i+=4,j++)bin[j]=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)>150?1:0;
+  const hMin=Math.max(10,H*0.012),hMax=H*0.09;
+  let cand=[];
+  for(const c of ocrComponents(bin,W,H)){
+    if(c.h<hMin||c.h>hMax||c.w<3)continue;
+    if(c.w>c.h*1.6)continue;
+    if(c.n<c.w*c.h*0.10)continue;
+    for(const q of (c.w>c.h*0.95?ocrSplit(bin,W,c):[c])){
+      if(q.h<hMin||q.w<3||q.w>q.h*1.05)continue;
+      const r=ocrClassify(ocrNorm(bin,W,q.x,q.y,q.w,q.h));
+      // só aceita leituras nítidas: perto do molde e longe do segundo melhor
+      if(r.dist<DIG_MAXD*0.30&&r.margin>DIG_MAXD*0.045)cand.push({d:r.d,x:q.x,y:q.y,w:q.w,h:q.h});
+    }
+  }
+  cand=cand.filter(g=>g.y+g.h/2>H*0.045); // fora a barra de estado do telemóvel
+  // Agrupa por linha ANTES de ordenar por x: dígitos da mesma linha diferem 1-2px no centro,
+  // e ordenar só por y baralha-os.
+  cand.sort((a,b)=>(a.y+a.h/2)-(b.y+b.h/2));
+  const lines=[];
+  for(const g of cand){
+    const cy=g.y+g.h/2;
+    const L=lines.find(l=>Math.abs(l.cy-cy)<Math.max(l.h,g.h)*0.45&&Math.abs(l.h-g.h)<Math.max(l.h,g.h)*0.4);
+    if(L){L.items.push(g);L.cy=(L.cy*(L.items.length-1)+cy)/L.items.length;L.h=Math.max(L.h,g.h)}
+    else lines.push({cy,h:g.h,items:[g]});
+  }
+  const runs=[];
+  for(const L of lines){
+    L.items.sort((a,b)=>a.x-b.x);
+    let cur=null;
+    for(const g of L.items){
+      if(cur&&g.x-(cur.x+cur.w)<cur.h*0.45&&Math.abs(cur.h-g.h)<cur.h*0.3){cur.s+=g.d;cur.w=g.x+g.w-cur.x}
+      else{cur={s:g.d,x:g.x,y:g.y,w:g.w,h:g.h};runs.push(cur)}
+    }
+  }
+  runs.sort((a,b)=>(a.y+a.h/2)-(b.y+b.h/2)||a.x-b.x);
+  return runs.filter(r=>r.s.length<=4).map(r=>({v:+r.s,n:r.s.length,x:r.x,y:r.y,w:r.w,h:r.h}));
+}
+// Aplica as regras de leitura dos dois ecrãs do relógio
+function readShot(runs,W,H){
+  const out={};
+  const rows=[];
+  for(const r of runs.slice().sort((a,b)=>a.y-b.y||a.x-b.x)){
+    const L=rows.find(l=>Math.abs(l.y-(r.y+r.h/2))<r.h*0.6);
+    if(L){L.items.push(r)}else rows.push({y:r.y+r.h/2,items:[r]});
+  }
+  for(const L of rows)L.items.sort((a,b)=>a.x-b.x);
+  // FC: primeira linha com exatamente 2 números plausíveis, um em cada metade
+  for(const L of rows){
+    if(L.items.length!==2)continue;
+    const [a,b]=L.items;
+    if(a.v<35||a.v>110||b.v<35||b.v>110)continue;
+    if(!(a.x+a.w<W*0.5&&b.x>W*0.5))continue;
+    out.rhr=a.v;out.sleepHr=b.v;break;
+  }
+  // Sono: pontuação = número no anel. Metade direita, terço de cima, e dígitos nitidamente
+  // maiores que o resto da zona (é isso que a distingue de qualquer outro número).
+  const top=runs.filter(r=>r.y+r.h/2<H*0.45);
+  if(top.length){
+    const hs=top.map(r=>r.h).sort((a,b)=>a-b),med=hs[hs.length>>1];
+    const cs=top.filter(r=>r.v>=1&&r.v<=100&&r.n<=3&&r.x>W*0.5&&r.h>med*1.15).sort((a,b)=>b.h-a.h);
+    if(cs.length)out.sleepScore=cs[0].v;
+  }
+  // Sono: duração = par (h,min) na mesma linha, separados por texto. Prefere os dígitos maiores.
+  let dur=null;
+  for(const L of rows)for(let i=0;i+1<L.items.length;i++){
+    const a=L.items[i],b=L.items[i+1];
+    const gap=b.x-(a.x+a.w);
+    if(a.v>14||b.v>59||b.n!==2)continue;
+    if(gap<a.h*0.45||gap>a.h*2.6)continue;
+    if(!dur||a.h>dur.h)dur={h:a.h,hh:a.v,mm:b.v};
+  }
+  if(dur){out.sleepHH=dur.hh;out.sleepMM=dur.mm}
+  return out;
 }
 
 // ============================== ILUSTRAÇÕES SVG ==============================
