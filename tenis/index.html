@@ -72,6 +72,11 @@ input,textarea,select{font-size:16px}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.3px;background:var(--card2);color:var(--muted);white-space:nowrap}
 .badge.g{background:var(--green-bg);color:var(--green)}.badge.y{background:var(--yellow-bg);color:var(--yellow)}.badge.r{background:var(--red-bg);color:var(--red)}.badge.b{background:var(--blue-bg);color:var(--blue)}.badge.o{background:var(--orange-bg);color:var(--orange)}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.sync-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--dim);transition:background .3s}
+.sync-dot.ok{background:var(--green)}
+.sync-dot.guardar,.sync-dot.ligar{background:var(--yellow);animation:blink 1s ease-in-out infinite}
+.sync-dot.erro{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
 
 /* buttons */
 .btn{min-height:50px;width:100%;border-radius:13px;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line2);background:var(--card2);color:var(--text);padding:0 16px;letter-spacing:-.1px;transition:transform .08s}
@@ -285,6 +290,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
       <div class="title" id="tb-title">Hoje</div>
     </div>
     <div class="row" style="gap:8px">
+      <span class="sync-dot local" id="sync-dot" title="Só neste dispositivo"></span>
       <button class="iconbtn" data-act="open-settings" aria-label="Definições">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
@@ -361,6 +367,7 @@ function defaultState(){return{
   lastLogs:{},      // exId -> último registo (pré-preenchimento)
   ext:{workouts:[],imports:[],daily:{}},  // dados importados (Apple Health / CSV): treinos, histórico de importações, FC/sono por dia
   active:null,      // sessão em curso (rascunho)
+  rev:0,            // revisão, para saber qual dispositivo tem o mais recente
   ui:{tab:'hoje',planWeek:null,progEx:null}
 }}
 let S=loadState();
@@ -377,9 +384,8 @@ function migrate(s){const d=defaultState();
   s.ui=Object.assign({},d.ui,s.ui||{});
   return s}
 let saveT;
-function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,60)}
-function saveNow(){
-  clearTimeout(saveT);
+// persist escreve no telemóvel. saveNow marca uma revisão nova e manda sincronizar.
+function persist(){
   try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){
     // Sem espaço: os prints são o que ocupa. Larga os mais antigos e tenta outra vez.
     const days=Object.keys(S.shots||{}).sort();let dropped=0;
@@ -388,7 +394,62 @@ function saveNow(){
     toast('Sem espaço para guardar. Exporta o JSON e apaga prints.',5000);return false;
   }
 }
+function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,60)}
+function saveNow(){clearTimeout(saveT);S.rev=(S.rev||0)+1;const ok=persist();syncQueue();return ok}
 window.addEventListener('pagehide',saveNow);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
+
+// ============================== SINCRONIZAÇÃO ==============================
+// Os dados vivem no telemóvel (rápido, funciona offline) e, quando a app corre publicada,
+// sincronizam com o armazenamento do artefacto, para estarem em qualquer dispositivo.
+// Os prints ficam sempre só no dispositivo: são imagens e não vale a pena atravessá-las.
+const SYNC_DOC='estado/tenis';
+const SYNC={db:null,ready:false,state:'local',at:null,t:null,busy:false,pending:false};
+const SYNC_TXT={local:'Só neste dispositivo',ligar:'A ligar…',ok:'Sincronizado',guardar:'A guardar…',erro:'Falhou'};
+function syncSet(st){SYNC.state=st;const el=$('#sync-dot');if(el){el.className='sync-dot '+st;el.title=SYNC_TXT[st]||st}
+  if(S.ui.tab==='saude'||$('.sheet'))return;}
+function syncBody(){
+  return {v:1,rev:S.rev||0,at:new Date().toISOString(),
+    settings:S.settings,sessions:S.sessions,health:S.health,swaps:S.swaps,
+    overrides:S.overrides,lastLogs:S.lastLogs,ext:S.ext};
+}
+function syncAdopt(b){
+  if(b.settings)S.settings=Object.assign({},S.settings,b.settings);
+  if(Array.isArray(b.sessions))S.sessions=b.sessions;
+  if(Array.isArray(b.swaps))S.swaps=b.swaps;
+  for(const k of ['health','overrides','lastLogs','ext'])if(b[k]&&typeof b[k]==='object')S[k]=b[k];
+  S=migrate(S);S.rev=b.rev||0;persist(); // persist e não saveNow: adotar não é uma revisão nova
+}
+function syncQueue(){if(!SYNC.db||!SYNC.ready)return;clearTimeout(SYNC.t);SYNC.t=setTimeout(syncPush,1200)}
+async function syncPush(){
+  if(!SYNC.db||!SYNC.ready)return;
+  if(SYNC.busy){SYNC.pending=true;return}
+  SYNC.busy=true;syncSet('guardar');
+  try{await SYNC.db.doc(SYNC_DOC).set(syncBody());SYNC.at=Date.now();syncSet('ok')}
+  catch(e){console.warn('sync push',e);syncSet('erro')}
+  finally{SYNC.busy=false;if(SYNC.pending){SYNC.pending=false;syncQueue()}}
+}
+async function syncInit(){
+  if(typeof claude==='undefined'||!claude||typeof claude.use!=='function'){syncSet('local');return}
+  syncSet('ligar');
+  let db=null;try{db=await claude.use('db')}catch(e){}
+  if(!db){syncSet('local');return}
+  SYNC.db=db;
+  try{
+    const snap=await db.doc(SYNC_DOC).get();
+    const b=snap.exists?snap.data():null;
+    // Só depois de uma leitura boa é que se pode escrever, senão um dispositivo
+    // novo e vazio apagaria o que está no servidor.
+    SYNC.ready=true;
+    if(b&&(b.rev||0)>(S.rev||0)){syncAdopt(b);render();toast('Dados carregados do servidor')}
+    else await syncPush();
+    SYNC.at=Date.now();syncSet('ok');
+    db.doc(SYNC_DOC).onSnapshot(s=>{
+      if(!s.exists)return;const r=s.data();
+      if((r.rev||0)>(S.rev||0)){syncAdopt(r);SYNC.at=Date.now();syncSet('ok');render();toast('Atualizado a partir de outro dispositivo',3000)}
+    },e=>{console.warn('sync stream',e);syncSet('erro')});
+  }catch(e){console.warn('sync init',e);syncSet('erro')}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(SYNC.t);syncPush()}});
 
 // ============================== PLANO ==============================
 const PLAN_WEEKS=32;
@@ -1482,6 +1543,10 @@ function openSettings(){
     <div class="field"><label>Meta de passos por caminhada</label><div class="row between"><div class="stepper"><button data-act="set-stepgoal" data-n="-1000">−</button><div class="val num" style="min-width:80px">${fmtN(s.stepGoal||6000)}</div><button data-act="set-stepgoal" data-n="1000">+</button></div><div class="small muted">passos</div></div></div>
     <div class="field"><label>Data da prova / torneio (opcional)</label><input type="date" class="input" value="${s.matchDate||''}" data-set="matchDate"><div class="xs muted mt4">A semana da prova corta 40% do volume técnico e tira a força pesada nos 3 dias anteriores.</div></div>
     <div class="field"><label>Tema</label><div class="seg"><button class="${s.theme!=='light'?'on':''}" data-act="set-theme" data-v="dark">Escuro</button><button class="${s.theme==='light'?'on':''}" data-act="set-theme" data-v="light">Claro</button></div></div>
+    <div class="sec" style="padding:0;margin-top:20px">Sincronização</div>
+    <div class="row between mt4"><div class="row" style="gap:8px"><span class="sync-dot ${SYNC.state}"></span><b>${SYNC_TXT[SYNC.state]||SYNC.state}</b></div>${SYNC.db?`<button class="btn xs ghost" data-act="sync-now">Sincronizar agora</button>`:''}</div>
+    <div class="xs muted mt4">${SYNC.db?'Sessões, check-ins, trocas e definições ficam no servidor e aparecem em qualquer dispositivo onde abras esta página. Os prints ficam só neste telemóvel.'
+      :'Estás a correr o ficheiro solto, portanto os dados ficam só aqui. Abre a versão publicada para sincronizar entre dispositivos.'}${SYNC.at?' Última vez: '+new Date(SYNC.at).toTimeString().slice(0,5)+'.':''}</div>
     <div class="sec" style="padding:0;margin-top:20px">Backup</div>
     <div class="small muted mt4">O JSON contém tudo: sessões, check-ins, trocas, definições. Guarda-o fora do telemóvel de vez em quando.</div>
     <div class="btn-row mt12"><button class="btn sm" data-act="export">Exportar JSON</button><label class="btn sm">Importar JSON<input type="file" accept=".json,application/json" class="hide" data-act-input="import-json"></label></div>
@@ -1492,17 +1557,26 @@ function openSettings(){
     <button class="btn danger sm mt16" data-act="reset-all">Apagar todos os dados</button>
     <div class="xs dim mt12">Tennis Training OS · ficheiro único, offline. Nenhum pedido de rede em runtime.</div>`);
 }
-function exportJSON(withShots){
+async function exportJSON(withShots){
   const src=withShots?S:Object.assign({},S,{shots:{}});
-  const data=JSON.stringify(src,null,1);const name='tennis-os-backup-'+today()+(withShots?'-com-prints':'')+'.json';
-  try{const blob=new Blob([data],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);toast('Exportado: '+name)}
+  const data=JSON.stringify(src,null,1);const filename='tennis-os-backup-'+today()+(withShots?'-com-prints':'')+'.json';
+  // Publicada, a página só entrega ficheiros pelo canal do visualizador; solta, usa o download normal.
+  let dl=null;
+  if(typeof claude!=='undefined'&&claude&&typeof claude.use==='function'){try{dl=await claude.use('downloads')}catch(e){}}
+  if(dl){try{const r=await dl.save({filename,data});toast(r&&r.status==='delivered'?'Ficheiro entregue':'Exportado: '+filename)}
+    catch(e){toast(e&&e.code==='cancelled'?'Exportação cancelada':'Não deu para exportar. Usa "Copiar JSON".',3000)}
+    return}
+  try{const blob=new Blob([data],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);toast('Exportado: '+filename)}
   catch(e){toast('Não deu para descarregar. Usa "Copiar JSON".',3000)}
 }
 function importJSONText(txt){
   let obj;try{obj=JSON.parse(txt)}catch(e){toast('JSON inválido',3000);return false}
   if(!obj||typeof obj!=='object'||!Array.isArray(obj.sessions)||typeof obj.health!=='object'){toast('Isto não é um backup do Tennis OS',3000);return false}
   if(!confirm(`Importar ${obj.sessions.length} sessões e ${Object.keys(obj.health).length} check-ins? Substitui os dados atuais.`))return false;
-  S=migrate(obj);saveNow();applyTheme();closeSheet();render();toast('Importado com sucesso');return true;
+  const prev=S.rev||0;
+  S=migrate(obj);
+  S.rev=Math.max(S.rev||0,prev); // fica acima do que está no servidor, senão o sync desfazia a importação
+  saveNow();applyTheme();closeSheet();render();toast('Importado com sucesso');return true;
 }
 function applyTheme(){document.documentElement.dataset.theme=S.settings.theme==='light'?'light':'dark';const m=$('meta[name=theme-color]');if(m)m.content=S.settings.theme==='light'?'#EEF1F5':'#0B0E11'}
 
@@ -1518,12 +1592,15 @@ const ACT={
   'close-sheet'(el,e){if(el.classList.contains('backdrop')&&e&&e.target!==el)return;closeSheet()},
   'set-weekend'(el){S.settings.weekendDay=el.dataset.v;save();openSettings();render()},
   'set-theme'(el){S.settings.theme=el.dataset.v;save();applyTheme();openSettings()},
+  'sync-now'(){clearTimeout(SYNC.t);syncPush().then(()=>{openSettings();toast(SYNC.state==='ok'?'Sincronizado':'Não consegui sincronizar')})},
   'set-stepgoal'(el){S.settings.stepGoal=clamp((S.settings.stepGoal||6000)+num(el.dataset.n),1000,30000);save();openSettings();render()},
   export(){exportJSON(false)},
   'export-shots'(){exportJSON(true)},
   'copy-json'(){const txt=JSON.stringify(Object.assign({},S,{shots:{}}));if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast('JSON copiado ('+(txt.length/1024).toFixed(0)+' KB)'),()=>toast('Não consegui copiar'));else toast('Clipboard indisponível')},
   'paste-json'(){const txt=prompt('Cola aqui o JSON do backup:');if(txt)importJSONText(txt)},
-  'reset-all'(){if(confirm('Apagar TODOS os dados desta app? Não há volta.')){if(confirm('Mesmo? Exportaste o JSON primeiro?')){S=defaultState();saveNow();closeSheet();applyTheme();render();toast('Dados apagados')}}},
+  'reset-all'(){if(confirm('Apagar TODOS os dados desta app? Não há volta.')){if(confirm('Mesmo? Exportaste o JSON primeiro?')){
+    const prev=S.rev||0;S=defaultState();S.rev=prev; // apagar tem de ganhar ao que está no servidor
+    saveNow();closeSheet();applyTheme();render();toast('Dados apagados')}}},
   'plan-week'(el){const mon=S.ui.planWeek||mondayOf(today());S.ui.planWeek=addDays(mon,7*num(el.dataset.n));S.ui.planSel=null;save();render()},
   'plan-sel'(el){S.ui.planSel=el.dataset.d;save();render()},
   'undo-override'(el){const d=el.dataset.d;delete S.overrides[d];S.swaps=S.swaps.filter(s=>!(s.date===d&&!s.done));save();render();toast('Troca anulada')},
@@ -2011,7 +2088,8 @@ function svgFor(key,size){
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 applyTheme();
 render();
-saveNow();
+persist();
+syncInit();
 // sessão em curso de hoje: retoma automaticamente
 if(S.active&&S.active.date===today())renderSession();else if(S.active&&S.active.date!==today()){/* rascunho de outro dia fica disponível em Hoje só se for hoje; descarta-se silenciosamente */S.active=null;save()}
 </script>
