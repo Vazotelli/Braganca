@@ -1714,7 +1714,7 @@ const ACT={
   's-finish'(){tPause();finishSheet()},
   's-dur'(el){const a=S.active;a.durationMin=clamp((a.durationMin||a.session.est)+num(el.dataset.n),5,300);$('#fin-dur').innerHTML=a.durationMin+'<span class="unit">min</span>';save()},
   's-rpe'(el){S.active.rpe=num(el.dataset.v);save();$$('[data-act="s-rpe"]').forEach(b=>b.classList.toggle('on',b===el))},
-  's-save-final'(){const a=S.active;a.notes=$('#fin-notes').value;if(!a.rpe){toast('Falta o RPE da sessão');return}saveActive()}
+  's-save-final'(){const a=S.active;a.notes=$('#fin-notes').value;saveActive()}
 };
 function findEx(id){for(const b of S.active.session.blocks)for(const e of b.ex)if(e.id===id)return e;return null}
 document.addEventListener('click',e=>{
