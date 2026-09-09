@@ -208,8 +208,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 
 /* sheets & overlays */
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:80;display:flex;align-items:flex-end;justify-content:center;animation:fadeUp .15s}
-.sheet{background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:90vh;overflow:auto;padding:12px 16px calc(18px + env(safe-area-inset-bottom));animation:slideUp .25s cubic-bezier(.22,1,.36,1);-webkit-overflow-scrolling:touch}
+.sheet{position:relative;background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:90vh;overflow:auto;padding:12px 16px calc(18px + env(safe-area-inset-bottom));animation:slideUp .25s cubic-bezier(.22,1,.36,1);-webkit-overflow-scrolling:touch}
 .sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line2);margin:0 auto 12px}
+.sheet-x{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:var(--card2);color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:1}
+.sheet-x svg{width:16px;height:16px}
 .sheet h2{font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
 .fullscreen{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch;animation:fadeUp .22s cubic-bezier(.22,1,.36,1)}
 .fullscreen .inner{max-width:480px;margin:0 auto;padding-bottom:calc(120px + env(safe-area-inset-bottom))}
@@ -1610,7 +1612,7 @@ function importJSONText(txt){
 function applyTheme(){document.documentElement.dataset.theme=S.settings.theme==='light'?'light':'dark';const m=$('meta[name=theme-color]');if(m)m.content=S.settings.theme==='light'?'#EEF1F5':'#0B0E11'}
 
 // ============================== SHEET / OVERLAY ==============================
-function sheet(html){$('#overlay').innerHTML=`<div class="backdrop" data-act="close-sheet"><div class="sheet"><div class="grab"></div>${html}</div></div>`}
+function sheet(html){$('#overlay').innerHTML=`<div class="backdrop" data-act="close-sheet"><div class="sheet"><div class="grab"></div><button class="sheet-x" data-act="close-sheet" aria-label="Fechar">${ICON.x}</button>${html}</div></div>`}
 function closeSheet(){$('#overlay').innerHTML=''}
 
 // ============================== AÇÕES ==============================
