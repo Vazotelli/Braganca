@@ -120,6 +120,23 @@ input[type=date].input{color-scheme:dark}
 .opt b{display:block;font-size:15px}.opt span{font-size:12.5px;color:var(--muted)}
 .fs-elapsed{font-size:13px;font-weight:700;color:var(--muted);padding:6px 10px;border-radius:9px;background:var(--card)}
 .ghost-hint{font-size:11px;color:var(--dim);margin-top:2px}
+.sub{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.numrow{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);min-height:56px}
+.numrow:last-of-type{border-bottom:0}
+.numrow .nl{font-size:15px;font-weight:600}
+.numrow .nh{font-size:11.5px;color:var(--dim);margin-top:1px;line-height:1.25}
+.numrow .nin{width:82px;min-height:46px;text-align:center;font-size:19px;font-weight:700;padding:6px 4px;flex:none}
+.numrow .nu{font-size:12px;font-weight:700;color:var(--muted);width:34px;flex:none}
+.chip.pain.p1{background:var(--yellow-bg);border-color:var(--yellow);color:var(--yellow)}
+.chip.pain.p2{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.shots{display:flex;gap:8px;flex-wrap:wrap}
+.shot{position:relative;width:72px;height:104px;border-radius:10px;overflow:hidden;background:var(--card2);border:1px solid var(--line2);flex:none}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot-x{position:absolute;top:2px;right:2px;width:26px;height:26px;border-radius:50%;background:rgba(11,14,17,.8);color:var(--text);display:flex;align-items:center;justify-content:center}
+.shot-x svg{width:14px;height:14px}
+.shot.add{display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--muted);border-style:dashed;cursor:pointer}
+.shot-full{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px}
+.shot-full img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
 input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:44px;background:transparent}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--card3)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--text);margin-top:-11px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
@@ -336,6 +353,7 @@ function defaultState(){return{
   settings:{startDate:mondayOf(today()),weekendDay:'both',weekendV2:true,matchDate:'',theme:'dark',stepGoal:6000},
   sessions:[],      // registos de sessões concluídas
   health:{},        // 'AAAA-MM-DD' -> check-in diário
+  shots:{},         // 'AAAA-MM-DD' -> prints da app do relógio (reduzidos)
   swaps:[],         // histórico de trocas {date,from,to,reason,detail}
   overrides:{},     // 'AAAA-MM-DD' -> {key,opts,reason,detail} sessão trocada para o dia
   lastLogs:{},      // exId -> último registo (pré-preenchimento)
@@ -357,8 +375,17 @@ function migrate(s){const d=defaultState();
   s.ui=Object.assign({},d.ui,s.ui||{});
   return s}
 let saveT;
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Erro a guardar: '+e.message,4000)}},60)}
-function saveNow(){clearTimeout(saveT);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,60)}
+function saveNow(){
+  clearTimeout(saveT);
+  try{localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){
+    // Sem espaço: os prints são o que ocupa. Larga os mais antigos e tenta outra vez.
+    const days=Object.keys(S.shots||{}).sort();let dropped=0;
+    while(days.length){delete S.shots[days.shift()];dropped++;
+      try{localStorage.setItem(KEY,JSON.stringify(S));toast('Sem espaço: apaguei os prints de '+dropped+' dia(s) antigo(s)',4000);return true}catch(_){}}
+    toast('Sem espaço para guardar. Exporta o JSON e apaga prints.',5000);return false;
+  }
+}
 window.addEventListener('pagehide',saveNow);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
 
 // ============================== PLANO ==============================
@@ -568,31 +595,44 @@ const PAIN_SEGS=[['ombro','Ombro'],['cotovelo','Cotovelo'],['joelho','Joelho'],[
 function healthFor(d){
   const m=S.health[d],x=S.ext.daily&&S.ext.daily[d];if(!m&&!x)return null;
   const h=Object.assign({},m||{});
-  if(x){if(h.rhr==null&&x.rhr)h.rhr=x.rhr,h.rhrSrc=x.src;if(h.sleepH==null&&x.sleepH!=null)h.sleepH=x.sleepH,h.sleepSrc=x.src;if(x.steps)h.steps=x.steps;if(!m)h.imported=true}
+  if(x){if(h.rhr==null&&x.rhr)h.rhr=x.rhr,h.rhrSrc=x.src;if(h.sleepH==null&&x.sleepH!=null)h.sleepH=x.sleepH,h.sleepSrc=x.src;
+    if(h.sleepScore==null&&x.sleepScore)h.sleepScore=x.sleepScore;if(h.sleepHr==null&&x.sleepHr)h.sleepHr=x.sleepHr;
+    if(x.steps)h.steps=x.steps;if(!m)h.imported=true}
   return h;
 }
-function rhrBaseline(d){ // mediana dos últimos 28 dias (exclui o próprio dia); mínimo 3 valores
-  const vals=[];for(let i=1;i<=28;i++){const h=healthFor(addDays(d,-i));if(h&&h.rhr)vals.push(h.rhr)}
+// Mediana dos últimos 28 dias para um campo (exclui o próprio dia); mínimo 3 valores
+function baselineOf(d,key){
+  const vals=[];for(let i=1;i<=28;i++){const h=healthFor(addDays(d,-i));if(h&&h[key])vals.push(h[key])}
   return vals.length>=3?median(vals):null;
 }
+const rhrBaseline=d=>baselineOf(d,'rhr');
+// Pontuação por desvio acima da mediana: igual ou abaixo é o melhor sinal
+function vsBaseline(v,b,max){if(b==null)return {score:max*0.75,txt:'sem baseline ainda (neutro)'};const dl=v-b;
+  return {score:dl<=0?max:dl<=2?max*0.75:dl<=5?max*0.4:0,txt:'vs mediana '+Math.round(b)+' ('+(dl>0?'+':'')+Math.round(dl)+')'}}
+const STATE_OPTS=[[1,'Rebentado'],[2,'Assim-assim'],[3,'Bem']];
 const BANDS=[{min:80,c:'g',name:'Verde',rec:'Sessão completa. Podes forçar.'},{min:60,c:'y',name:'Amarelo',rec:'Sessão completa, mas sem subir carga.'},{min:40,c:'o',name:'Laranja',rec:'Versão a 60% do volume.'},{min:0,c:'r',name:'Vermelho',rec:'Descanso ou só mobilidade.'}];
 const bandOf=score=>BANDS.find(b=>score>=b.min);
 function readiness(d){
   const h=healthFor(d);if(!h)return null;
   const parts=[];
   const add=(k,label,score,max,detail)=>parts.push({k,label,score:Math.round(score),max,detail});
-  if(h.sleepH!=null)add('sleepH','Horas de sono',clamp(h.sleepH/8,0,1)*25,25,h.sleepH+' h (alvo 8 h)');
-  if(h.sleepQ)add('sleepQ','Qualidade do sono',(h.sleepQ-1)/4*15,15,h.sleepQ+'/5');
-  if(h.rhr){const b=rhrBaseline(d);const src=h.rhrSrc?' · '+h.rhrSrc:'';
-    if(b==null)add('rhr','FC repouso',15,20,h.rhr+' bpm · sem baseline ainda (neutro)'+src);
-    else{const dl=h.rhr-b;add('rhr','FC repouso',dl<=0?20:dl<=3?15:dl<=6?8:0,20,h.rhr+' bpm vs mediana '+Math.round(b)+' ('+(dl>0?'+':'')+Math.round(dl)+')'+src)}}
-  if(h.soreness!=null)add('soreness','Dores musculares',[15,10,5,0][h.soreness],15,h.soreness+'/3');
+  // Sono curto não é penalização linear: abaixo de 6 h a recuperação cai a pique e nada compensa.
+  if(h.sleepH!=null&&h.sleepH>0)add('sleepH','Horas de sono',20*Math.pow(clamp((h.sleepH-3)/5,0,1),1.6),20,fmtH(h.sleepH)+' (alvo 8 h)'+(h.sleepSrc?' · '+h.sleepSrc:''));
+  if(h.sleepScore)add('sleepScore','Pontuação de sono',clamp(h.sleepScore/85,0,1)*20,20,h.sleepScore+'/100 · do relógio');
+  if(h.rhr){const r=vsBaseline(h.rhr,baselineOf(d,'rhr'),20);add('rhr','FC repouso',r.score,20,h.rhr+' bpm '+r.txt+(h.rhrSrc?' · '+h.rhrSrc:''))}
+  if(h.sleepHr){const r=vsBaseline(h.sleepHr,baselineOf(d,'sleepHr'),15);add('sleepHr','FC média no sono',r.score,15,h.sleepHr+' bpm '+r.txt)}
   if(!h.imported){const mp=Math.max(0,...PAIN_SEGS.map(([k])=>h.pain&&h.pain[k]||0));
-  add('pain','Dor articular (máx.)',[15,10,4,0][mp],15,mp+'/3'+(mp?' · '+PAIN_SEGS.filter(([k])=>(h.pain&&h.pain[k]||0)===mp).map(([,l])=>l).join(', '):''))}
-  if(h.motivation)add('motivation','Motivação',(h.motivation-1)/4*10,10,h.motivation+'/5');
+    const where=PAIN_SEGS.filter(([k])=>(h.pain&&h.pain[k]||0)>0).map(([k,l])=>l+((h.pain[k]||0)>=2?' (forte)':'')).join(', ');
+    add('pain','Dor',mp===0?15:mp===1?9:0,15,mp===0?'nenhuma':where)}
+  if(h.state)add('state','Como estás',(h.state-1)/2*10,10,(STATE_OPTS.find(o=>o[0]===h.state)||[,''])[1]);
   const max=sum(parts.map(p=>p.max));const sc=sum(parts.map(p=>p.score));
-  const score=max?Math.round(sc/max*100):0;
-  return {score,parts,band:bandOf(score),partial:max<100,imported:!!h.imported};
+  let score=max?Math.round(sc/max*100):0;
+  // Teto por noite curta: uma FC boa não compensa dormir 4 horas.
+  let cap=null;const sh=h.sleepH;
+  if(sh!=null&&sh>0){if(sh<4)cap={v:30,t:'menos de 4 h de sono'};else if(sh<5)cap={v:45,t:'menos de 5 h de sono'};else if(sh<6)cap={v:65,t:'menos de 6 h de sono'}}
+  if(cap&&score>cap.v)score=cap.v;else cap=null;
+  // Com menos de metade dos fatores não há score fiável: é falta de dados, não é estares mal.
+  return {score,parts,cap,band:bandOf(score),partial:max<100,weak:max<50,maxPts:max,imported:!!h.imported};
 }
 // Regra rígida: dor ombro/cotovelo ≥2 em dois dias (≥48 h) → bloqueia serviço até baixar
 function painBlock(d){
@@ -630,8 +670,11 @@ function computeAlerts(d){
   const pb=painBlock(d);
   if(pb.active)A.push({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+' ('+pb.days+' dias). Todos os blocos de serviço ficam fechados até a dor baixar para 0-1 no check-in.'});
   const h=S.health[d];
-  if(!h)A.push({c:'b',t:'Sem check-in hoje',x:(S.ext.daily&&S.ext.daily[d]?'Há FC/sono importados, mas falta a dor e a motivação. ':'')+'30 segundos no separador Saúde para calcular a prontidão.',act:'tab:saude'});
-  else{const r=readiness(d);if(r&&r.score<40)A.push({c:'r',t:'Prontidão '+r.score+': descanso',x:'Hoje só mobilidade. Forçar com este score é onde a lesão aparece.'});else if(r&&r.score<60)A.push({c:'o',t:'Prontidão '+r.score+': versão a 60%',x:'Usa "Trocar sessão → Cansado" para cortar o volume.'})}
+  if(!h)A.push({c:'b',t:'Sem check-in hoje',x:(S.ext.daily&&S.ext.daily[d]?'Há FC e sono importados, mas falta a dor. ':'')+'30 segundos no separador Saúde para calcular a prontidão.',act:'tab:saude'});
+  else{const r=readiness(d);
+    if(r&&r.weak)A.push({c:'b',t:'Check-in incompleto',x:'Só '+r.parts.length+' fatores preenchidos. Escreve o sono, a pontuação e as duas FC do relógio para o score valer alguma coisa.',act:'tab:saude'});
+    else if(r&&r.score<40)A.push({c:'r',t:'Prontidão '+r.score+': descanso',x:'Hoje só mobilidade. Forçar com este score é onde a lesão aparece.'});
+    else if(r&&r.score<60)A.push({c:'o',t:'Prontidão '+r.score+': versão a 60%',x:'Usa "Trocar sessão → Cansado" para cortar o volume.'})}
   const yh=yesterdayHigh(d);
   if(yh&&sess&&sess.intensity==='high')A.push({c:'y',t:'Dois dias seguidos de alta intensidade',x:'Ontem: '+(SESSION_LABEL[yh.key]||yh.key)+(yh.rpe?' (RPE '+yh.rpe+')':'')+'. Hoje é '+sess.short+'. Baixa para 60% ou troca a sessão.'});
   // Semana cheia: com os dois dias de fim de semana só a quinta é de descanso
@@ -689,7 +732,7 @@ function renderHoje(){
     <div class="row mt16" style="gap:14px">
       ${r?ring(r.score,100,{size:124,stroke:11,color:`var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})`,label:'Prontidão'}):ring(0,100,{size:124,stroke:11,color:'var(--dim)',value:'–',label:'Prontidão'})}
       <div class="grow">
-        ${r?`<div class="row" style="gap:6px"><span class="dot" style="background:var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})"></span><b>${r.band.name}</b>${r.partial?'<span class="badge">parcial</span>':''}</div><div class="mt4" style="font-size:14px;line-height:1.35">${esc(r.band.rec)}</div><button class="btn xs ghost mt8" data-act="tab" data-tab="saude">Ver cálculo</button>`
+        ${r?`<div class="row" style="gap:6px"><span class="dot" style="background:var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})"></span><b>${r.band.name}</b>${r.partial?'<span class="badge">parcial</span>':''}</div><div class="mt4" style="font-size:14px;line-height:1.35">${r.weak?'Faltam números do relógio para isto valer alguma coisa.':esc(r.band.rec)}</div><button class="btn xs ghost mt8" data-act="tab" data-tab="saude">Ver cálculo</button>`
           :`<div style="font-size:14px;line-height:1.35">Sem check-in de hoje. São 30 segundos.</div><button class="btn sm blue mt8" data-act="tab" data-tab="saude">Fazer check-in</button>`}
       </div>
     </div>
@@ -780,22 +823,36 @@ function swapPatterns(){
 function renderSaude(){
   const d=S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();
   const h0=healthFor(d)||{};const last=lastHealthBefore(d);
-  const v=(k,def)=>h0[k]!=null?h0[k]:(last&&last[k]!=null?last[k]:def);
+  // Números do relógio nunca herdam do dia anterior: um valor velho guardado sem dar por isso é pior que vazio.
+  const v=(k,def)=>k==='state'?(h0.state!=null?h0.state:(last&&last.state!=null?last.state:def)):(h0[k]!=null?h0[k]:def);
   const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,costas:0},h0.pain||{});
   const r=readiness(d);
-  const seg=(k,vals,cur,labels)=>`<div class="seg scale" data-hfield="${k}">${vals.map((x,i)=>`<button class="${cur===x?'on':''}" data-act="hseg" data-k="${k}" data-v="${x}">${x}${labels&&labels[i]?`<small>${labels[i]}</small>`:''}</button>`).join('')}</div>`;
+  const nf=(k,ph,mn,mx,unit,hint)=>`<div class="numrow"><div class="grow"><div class="nl">${ph}</div>${hint?`<div class="nh">${hint}</div>`:''}</div><input class="input num nin" type="number" inputmode="numeric" min="${mn}" max="${mx}" value="${v(k,'')}" placeholder="–" data-hnum="${k}"><span class="nu">${unit}</span></div>`;
+  const shots=(S.shots&&S.shots[d])||[];
+  const sh=v('sleepH',null);const hh=sh!=null?Math.floor(sh):'';const hm=sh!=null?Math.round((sh-Math.floor(sh))*60):'';
   let h=`<div class="card"><div class="row between"><div><div class="label">Check-in diário · 30 s</div><h3 class="mt4">${esc(fmtDate(d))}${d===today()?'':' <span class="badge y">passado</span>'}</h3></div><div class="row" style="gap:6px"><button class="iconbtn" data-act="hdate" data-n="-1">${ICON.left}</button><button class="iconbtn" data-act="hdate" data-n="1" ${d>=today()?'disabled style="opacity:.3"':''}>${ICON.right}</button></div></div>
-    <div class="field"><label>Horas de sono</label><div class="row between"><div class="stepper" data-hstep="sleepH"><button data-act="hstep" data-k="sleepH" data-n="-0.5">−</button><div class="val num">${v('sleepH',7.5)}</div><button data-act="hstep" data-k="sleepH" data-n="0.5">+</button></div><div class="muted small">alvo 8 h</div></div></div>
-    <div class="field"><label>Qualidade do sono</label>${seg('sleepQ',[1,2,3,4,5],v('sleepQ',3),['má','','ok','','ótima'])}</div>
-    <div class="field"><label>FC em repouso (bpm)</label><div class="row"><input class="input num" type="number" inputmode="numeric" min="30" max="120" value="${v('rhr','')}" placeholder="ex: 52" data-act-input="hrhr" style="max-width:140px">${(()=>{const b=rhrBaseline(d);return b?`<div class="small muted">mediana 28 d: <b class="num">${Math.round(b)}</b></div>`:'<div class="small muted">sem baseline (3+ dias)</div>'})()}</div></div>
-    <div class="field"><label>Dores musculares (0 nada · 3 forte)</label>${seg('soreness',[0,1,2,3],v('soreness',0))}</div>
-    <div class="field"><label>Dor articular (0 nada · 3 forte)</label>${PAIN_SEGS.map(([k,l])=>`<div class="row between" style="padding:5px 0"><span style="width:84px;font-weight:600">${l}</span><div class="seg scale grow" style="max-width:220px">${[0,1,2,3].map(x=>`<button class="${pain[k]===x?'on':''} ${pain[k]===x&&x>=2?'r':''}" data-act="hpain" data-k="${k}" data-v="${x}" style="${pain[k]===x&&x>=2?'border-color:var(--red);background:var(--red-bg);color:var(--red)':''}">${x}</button>`).join('')}</div></div>`).join('')}</div>
-    <div class="field"><label>Motivação</label>${seg('motivation',[1,2,3,4,5],v('motivation',3),['zero','','ok','','a arder'])}</div>
+
+    <div class="sub mt16">Do relógio</div>
+    <div class="numrow"><div class="grow"><div class="nl">Sono</div><div class="nh">o total que a app mostra</div></div><input class="input num nin" style="width:64px" type="number" inputmode="numeric" min="0" max="14" value="${hh}" placeholder="–" data-hnum="sleepHH"><span class="nu">h</span><input class="input num nin" style="width:64px" type="number" inputmode="numeric" min="0" max="59" value="${hm}" placeholder="–" data-hnum="sleepMM"><span class="nu">min</span></div>
+    ${nf('sleepScore','Pontuação de sono','0','100','/100','o número grande do anel')}
+    ${nf('rhr','FC repouso','30','120','bpm',(()=>{const b=baselineOf(d,'rhr');return b?'a tua mediana de 28 dias é '+Math.round(b):'precisa de 3 dias para ter mediana'})())}
+    ${nf('sleepHr','FC média no sono','30','120','bpm',(()=>{const b=baselineOf(d,'sleepHr');return b?'a tua mediana de 28 dias é '+Math.round(b):'o melhor sinal de recuperação que o relógio dá'})())}
+
+    <div class="sub mt16">Rápido</div>
+    <div class="field" style="margin-top:8px"><label>Dor · toca só se tiveres. Segundo toque marca forte</label><div class="chips">${PAIN_SEGS.map(([k,l])=>{const lv=pain[k]||0;return `<button class="chip pain ${lv===1?'p1':lv>=2?'p2':''}" data-act="hpain" data-k="${k}" data-v="${lv}">${l}${lv>=2?' · forte':lv===1?' · leve':''}</button>`}).join('')}</div><div class="xs dim mt4">Ombro ou cotovelo marcados como forte dois dias seguidos bloqueiam o serviço.</div></div>
+    <div class="field"><label>Como estás</label><div class="seg">${STATE_OPTS.map(([val,lab])=>`<button class="${v('state',2)===val?'on':''}" data-act="hstate" data-v="${val}">${lab}</button>`).join('')}</div></div>
+
+    <div class="sub mt16">Prints da app <span class="dim" style="text-transform:none;letter-spacing:0">${shots.length}/4</span></div>
+    <div class="shots mt8">${shots.map(s=>`<div class="shot"><img src="${s.data}" alt="print de ${esc(d)}" data-act="shot-open" data-id="${s.id}"><button class="shot-x" data-act="shot-del" data-id="${s.id}" aria-label="Apagar">${ICON.x}</button></div>`).join('')}
+      ${shots.length<4?`<label class="shot add">＋<input type="file" accept="image/*" class="hide" data-act-input="shot-add"></label>`:''}</div>
+    <div class="xs dim mt4">Guardados reduzidos, dentro do ficheiro. Não leio os números do print: escreve-os em cima.</div>
+
     <button class="btn primary mt16" data-act="hsave">${S.health[d]?'Atualizar check-in':'Guardar check-in'}</button>
   </div>`;
-  if(r){h+=`<div class="sec">Prontidão · como foi calculada</div><div class="card"><div class="row" style="gap:14px">${ring(r.score,100,{size:96,stroke:9,color:`var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})`,label:r.band.name})}<div class="grow"><div style="font-weight:700">${esc(r.band.rec)}</div><div class="small muted mt4">Soma ponderada de 6 fatores, normalizada a 100${r.partial?' (fatores em falta excluídos)':''}.</div></div></div>
+  if(r){h+=`<div class="sec">Prontidão · como foi calculada</div><div class="card"><div class="row" style="gap:14px">${ring(r.score,100,{size:96,stroke:9,color:`var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})`,label:r.band.name})}<div class="grow"><div style="font-weight:700">${esc(r.band.rec)}</div><div class="small muted mt4">${r.weak?'<b class="b">Só '+r.parts.length+' fatores preenchidos.</b> O score aparece, mas não decide nada até teres o sono e as FC do relógio.':'Soma ponderada de '+r.parts.length+' fatores, normalizada a 100'+(r.partial?' (fatores em falta excluídos)':'')+'.'}</div></div></div>
     <div class="mt12">${r.parts.map(p=>`<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><div><b>${esc(p.label)}</b><div class="muted xs">${esc(p.detail)}</div></div><div class="num" style="font-weight:700">${p.score}<span class="muted">/${p.max}</span></div></div>`).join('')}</div>
-    <div class="small muted mt12">Bandas: 80-100 verde (podes forçar) · 60-79 amarelo (sem subir carga) · 40-59 laranja (60% do volume) · &lt;40 vermelho (descanso). Regras rígidas sobrepõem-se: dor ombro/cotovelo ≥2 durante 2 dias bloqueia o serviço; nunca dois dias seguidos de alta intensidade.</div></div>`}
+    ${r.cap?`<div class="alert o" style="margin:12px 0 0">${ICON.warn}<div><b>Limitado a ${r.cap.v}</b>Dormiste ${esc(r.cap.t)}. A soma dos fatores dava mais, mas uma FC boa não compensa uma noite curta.</div></div>`:''}
+    <div class="small muted mt12">Bandas: 80-100 verde (podes forçar) · 60-79 amarelo (sem subir carga) · 40-59 laranja (60% do volume) · &lt;40 vermelho (descanso). Todos os números vêm do relógio, menos a dor e o "como estás". Regras rígidas sobrepõem-se ao score: ombro ou cotovelo marcados como forte dois dias seguidos bloqueiam o serviço; nunca dois dias seguidos de alta intensidade.</div></div>`}
   const pb=painBlock(today());if(pb.active)h+=alertHtml({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+'. Regista a dor a 0-1 para desbloquear.'});
   // histórico
   const days=[];for(let i=27;i>=0;i--){const dd=addDays(today(),-i);days.push({d:dd,h:healthFor(dd)})}
@@ -804,11 +861,13 @@ function renderSaude(){
   if(!has.length)h+=`<div class="empty">Sem check-ins. O primeiro é hoje.</div>`;
   else{
     const sp=(k,color,max)=>`<div class="spark">${days.map(x=>{const val=x.h?(k==='pain'?Math.max(0,...PAIN_SEGS.map(([s])=>x.h.pain&&x.h.pain[s]||0)):x.h[k]):null;return `<i style="height:${val!=null&&max?clamp(val/max*100,4,100):2}%;background:${color};opacity:${val!=null?.9:.15}"></i>`}).join('')}</div>`;
-    const sl=has.map(x=>x.h.sleepH).filter(x=>x!=null),rh=has.map(x=>x.h.rhr).filter(Boolean);
-    h+=`<div class="row between small"><b>Sono</b><span class="muted num">média ${sl.length?mean(sl).toFixed(1):'–'} h</span></div>${sp('sleepH','var(--blue)',10)}
+    const sl=has.map(x=>x.h.sleepH).filter(x=>x!=null),rh=has.map(x=>x.h.rhr).filter(Boolean),shr=has.map(x=>x.h.sleepHr).filter(Boolean),ss=has.map(x=>x.h.sleepScore).filter(Boolean);
+    h+=`<div class="row between small"><b>Sono</b><span class="muted num">média ${sl.length?fmtH(mean(sl)):'–'}</span></div>${sp('sleepH','var(--blue)',10)}
+        ${ss.length?`<div class="row between small mt12"><b>Pontuação de sono</b><span class="muted num">média ${Math.round(mean(ss))}/100</span></div>${sp('sleepScore','var(--blue)',100)}`:''}
         <div class="row between small mt12"><b>FC repouso</b><span class="muted num">média ${rh.length?Math.round(mean(rh)):'–'} bpm · min ${rh.length?Math.min(...rh):'–'}</span></div>${sp('rhr','var(--green)',Math.max(1,...rh))}
+        ${shr.length?`<div class="row between small mt12"><b>FC média no sono</b><span class="muted num">média ${Math.round(mean(shr))} bpm · min ${Math.min(...shr)}</span></div>${sp('sleepHr','var(--green)',Math.max(1,...shr))}`:''}
         ${has.some(x=>x.h.steps)?`<div class="row between small mt12"><b>Passos</b><span class="muted num">média ${fmtN(Math.round(mean(has.filter(x=>x.h.steps).map(x=>x.h.steps))))}/dia</span></div>${sp('steps','var(--blue)',Math.max(1,...has.filter(x=>x.h.steps).map(x=>x.h.steps)))}`:''}
-        <div class="row between small mt12"><b>Dor articular (máx.)</b><span class="muted num">dias com dor ≥2: ${has.filter(x=>Math.max(0,...PAIN_SEGS.map(([s])=>x.h.pain&&x.h.pain[s]||0))>=2).length}</span></div>${sp('pain','var(--red)',3)}
+        <div class="row between small mt12"><b>Dor</b><span class="muted num">dias com dor forte: ${has.filter(x=>Math.max(0,...PAIN_SEGS.map(([s])=>x.h.pain&&x.h.pain[s]||0))>=2).length}</span></div>${sp('pain','var(--red)',2)}
         <div class="row between small mt12"><b>Prontidão</b><span class="muted num">${(()=>{const rs=has.map(x=>readiness(x.d).score);return 'média '+Math.round(mean(rs))})()}</span></div><div class="spark">${days.map(x=>{const rr=x.h?readiness(x.d):null;return `<i style="height:${rr?clamp(rr.score,4,100):2}%;background:var(--${rr?({g:'green',y:'yellow',o:'orange',r:'red'})[rr.band.c]:'dim'});opacity:${rr?.9:.15}"></i>`}).join('')}</div>
         <div class="row between xs dim mt4"><span>${fmtShort(days[0].d)}</span><span>hoje</span></div>`;
   }
@@ -822,13 +881,47 @@ function renderSaude(){
   </div>`;
   $('#scr-saude').innerHTML=h;
 }
+const hDate=()=>S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();
 function lastHealthBefore(d){const ks=Object.keys(S.health).filter(k=>k<d).sort();return ks.length?S.health[ks[ks.length-1]]:null}
 function healthDraft(d){ // valores atuais do formulário → objeto
-  const el=$('#scr-saude');const g=k=>{const b=$(`[data-act="hseg"][data-k="${k}"].on`,el);return b?num(b.dataset.v):null};
-  const pain={};for(const [k] of PAIN_SEGS){const b=$(`[data-act="hpain"][data-k="${k}"].on`,el);pain[k]=b?num(b.dataset.v):0}
-  const rhrEl=$('[data-act-input="hrhr"]',el);const rhr=rhrEl&&rhrEl.value?num(rhrEl.value):null;
-  return {sleepH:num($('[data-hstep="sleepH"] .val',el).textContent,7.5),sleepQ:g('sleepQ'),rhr:rhr&&rhr>=30&&rhr<=120?rhr:null,soreness:g('soreness'),pain,motivation:g('motivation'),at:new Date().toISOString()};
+  const el=$('#scr-saude');
+  const n=(k,mn,mx)=>{const i=$(`[data-hnum="${k}"]`,el);if(!i||i.value==='')return null;const v=num(i.value);return v>=mn&&v<=mx?v:null};
+  const pain={};for(const [k] of PAIN_SEGS){const b=$(`[data-act="hpain"][data-k="${k}"]`,el);pain[k]=b?num(b.dataset.v):0}
+  const st=$('[data-act="hstate"].on',el);
+  const hh=n('sleepHH',0,14),mm=n('sleepMM',0,59);
+  const sleepH=(hh!=null||mm!=null)?Math.round(((hh||0)+(mm||0)/60)*100)/100:null;
+  return {sleepH,sleepScore:n('sleepScore',0,100),rhr:n('rhr',30,120),sleepHr:n('sleepHr',30,120),pain,state:st?num(st.dataset.v):2,at:new Date().toISOString()};
 }
+// ---------- Prints da app do relógio ----------
+// Guardados no próprio ficheiro, reduzidos a 560px e JPEG 0.5, para caberem no localStorage.
+const SHOT_MAX_W=560,SHOT_Q=0.5,SHOT_KEEP_DAYS=21,SHOT_PER_DAY=4;
+function addShot(d,file){
+  if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
+  const fr=new FileReader();
+  fr.onload=()=>{const img=new Image();
+    img.onload=()=>{
+      const sc=Math.min(1,SHOT_MAX_W/img.width);const w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
+      const c=document.createElement('canvas');c.width=w;c.height=hh;
+      const cx=c.getContext('2d');cx.drawImage(img,0,0,w,hh);
+      let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){toast('Não consegui processar a imagem');return}
+      S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
+      if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
+      arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString()});
+      pruneShots();
+      if(!saveNow()){arr.pop();render();return}
+      render();toast('Print guardado ('+Math.round(data.length/1024)+' KB)');
+    };
+    img.onerror=()=>toast('Não consegui ler a imagem');
+    img.src=fr.result;
+  };
+  fr.onerror=()=>toast('Não consegui ler o ficheiro');
+  fr.readAsDataURL(file);
+}
+function pruneShots(){ // os números ficam para sempre; as imagens só os últimos 21 dias
+  if(!S.shots)return;const lim=addDays(today(),-SHOT_KEEP_DAYS);
+  for(const k of Object.keys(S.shots))if(k<lim||!S.shots[k].length)delete S.shots[k];
+}
+function shotsBytes(){let n=0;for(const a of Object.values(S.shots||{}))for(const s of a)n+=s.data.length;return n}
 
 // ============================== SESSÃO ATIVA ==============================
 const RPE_DESC={1:'muito leve',2:'leve',3:'moderado',4:'algo difícil',5:'difícil',6:'',7:'muito difícil',8:'',9:'quase máx.',10:'máximo'};
@@ -879,6 +972,7 @@ function targetText(e){
   return '';
 }
 const fmtN=n=>Math.round(n||0).toLocaleString('pt-PT');
+const fmtH=h=>{const m=Math.round((h||0)*60);return Math.floor(m/60)+'h'+pad(m%60)};
 function serveTotals(log){const rs=(log&&log.rounds||[]).filter(r=>r.in!=null);return {s:sum(rs.map(r=>r.s)),in:sum(rs.map(r=>r.in)),t:sum(rs.map(r=>r.t||0)),n:rs.length}}
 function bestSpider(){let b=null;for(const s of S.sessions)for(const [id,l] of Object.entries(s.logs||{}))if(id==='spider'&&l&&l.laps)for(const x of l.laps)if(b==null||x<b)b=x;return b}
 
@@ -897,8 +991,8 @@ function tryStart(){
   const yh=yesterdayHigh(d);const rd=readiness(d);
   const warns=[];
   if(yh&&sess.intensity==='high')warns.push(`<b>Dois dias seguidos de alta intensidade.</b> Ontem fizeste ${esc(SESSION_LABEL[yh.key]||yh.key)}${yh.rpe?' com RPE '+yh.rpe:''}; hoje é ${esc(sess.short)}.`);
-  if(rd&&rd.score<40)warns.push(`<b>Prontidão ${rd.score} (vermelho).</b> A recomendação é descanso ou só mobilidade.`);
-  else if(rd&&rd.score<60&&!(opts.factor&&opts.factor<=0.6))warns.push(`<b>Prontidão ${rd.score} (laranja).</b> A recomendação é a versão a 60% do volume.`);
+  if(rd&&!rd.weak&&rd.score<40)warns.push(`<b>Prontidão ${rd.score} (vermelho).</b> A recomendação é descanso ou só mobilidade.`);
+  else if(rd&&!rd.weak&&rd.score<60&&!(opts.factor&&opts.factor<=0.6))warns.push(`<b>Prontidão ${rd.score} (laranja).</b> A recomendação é a versão a 60% do volume.`);
   if(!warns.length){startSession(r.key,opts,meta);return}
   sheet(`<h2>Antes de começar</h2>${warns.map(w=>`<div class="alert y" style="margin:10px 0 0">${ICON.warn}<div>${w}</div></div>`).join('')}
     <div class="mt16 col" style="gap:8px">
@@ -1317,13 +1411,16 @@ function openSettings(){
     <div class="sec" style="padding:0;margin-top:20px">Backup</div>
     <div class="small muted mt4">O JSON contém tudo: sessões, check-ins, trocas, definições. Guarda-o fora do telemóvel de vez em quando.</div>
     <div class="btn-row mt12"><button class="btn sm" data-act="export">Exportar JSON</button><label class="btn sm">Importar JSON<input type="file" accept=".json,application/json" class="hide" data-act-input="import-json"></label></div>
+    ${shotsBytes()?`<button class="btn sm ghost mt8" style="width:100%" data-act="export-shots">Exportar com os prints (${Math.round(shotsBytes()/1024)} KB a mais)</button>`:''}
     <div class="btn-row mt8"><button class="btn sm ghost" data-act="copy-json">Copiar JSON</button><button class="btn sm ghost" data-act="paste-json">Colar JSON</button></div>
     <div class="row between mt16 small muted"><span class="num">${S.sessions.length} sessões · ${Object.keys(S.health).length} check-ins · ${S.swaps.length} trocas</span><span class="num">${(JSON.stringify(S).length/1024).toFixed(0)} KB</span></div>
+    ${shotsBytes()?`<div class="xs dim mt4">Prints: ${Object.values(S.shots).reduce((a,x)=>a+x.length,0)} imagens, ${Math.round(shotsBytes()/1024)} KB. Apagam-se sozinhos ao fim de ${SHOT_KEEP_DAYS} dias; os números ficam.</div>`:''}
     <button class="btn danger sm mt16" data-act="reset-all">Apagar todos os dados</button>
     <div class="xs dim mt12">Tennis Training OS · ficheiro único, offline. Nenhum pedido de rede em runtime.</div>`);
 }
-function exportJSON(){
-  const data=JSON.stringify(S,null,1);const name='tennis-os-backup-'+today()+'.json';
+function exportJSON(withShots){
+  const src=withShots?S:Object.assign({},S,{shots:{}});
+  const data=JSON.stringify(src,null,1);const name='tennis-os-backup-'+today()+(withShots?'-com-prints':'')+'.json';
   try{const blob=new Blob([data],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);toast('Exportado: '+name)}
   catch(e){toast('Não deu para descarregar. Usa "Copiar JSON".',3000)}
 }
@@ -1348,8 +1445,9 @@ const ACT={
   'set-weekend'(el){S.settings.weekendDay=el.dataset.v;save();openSettings();render()},
   'set-theme'(el){S.settings.theme=el.dataset.v;save();applyTheme();openSettings()},
   'set-stepgoal'(el){S.settings.stepGoal=clamp((S.settings.stepGoal||6000)+num(el.dataset.n),1000,30000);save();openSettings();render()},
-  export(){exportJSON()},
-  'copy-json'(){const txt=JSON.stringify(S);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast('JSON copiado ('+(txt.length/1024).toFixed(0)+' KB)'),()=>toast('Não consegui copiar'));else toast('Clipboard indisponível')},
+  export(){exportJSON(false)},
+  'export-shots'(){exportJSON(true)},
+  'copy-json'(){const txt=JSON.stringify(Object.assign({},S,{shots:{}}));if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast('JSON copiado ('+(txt.length/1024).toFixed(0)+' KB)'),()=>toast('Não consegui copiar'));else toast('Clipboard indisponível')},
   'paste-json'(){const txt=prompt('Cola aqui o JSON do backup:');if(txt)importJSONText(txt)},
   'reset-all'(){if(confirm('Apagar TODOS os dados desta app? Não há volta.')){if(confirm('Mesmo? Exportaste o JSON primeiro?')){S=defaultState();saveNow();closeSheet();applyTheme();render();toast('Dados apagados')}}},
   'plan-week'(el){const mon=S.ui.planWeek||mondayOf(today());S.ui.planWeek=addDays(mon,7*num(el.dataset.n));S.ui.planSel=null;save();render()},
@@ -1357,10 +1455,17 @@ const ACT={
   'undo-override'(el){const d=el.dataset.d;delete S.overrides[d];S.swaps=S.swaps.filter(s=>!(s.date===d&&!s.done));save();render();toast('Troca anulada')},
   // saúde
   'hdate'(el){const d=S.ui.healthDate||today();S.ui.healthDate=addDays(d,num(el.dataset.n));if(S.ui.healthDate>today())S.ui.healthDate=today();save();render()},
-  'hseg'(el){const k=el.dataset.k;$$(`[data-act="hseg"][data-k="${k}"]`).forEach(b=>b.classList.toggle('on',b===el))},
-  'hpain'(el){const k=el.dataset.k;$$(`[data-act="hpain"][data-k="${k}"]`).forEach(b=>{const on=b===el;b.classList.toggle('on',on);const v=num(b.dataset.v);b.style.cssText=on&&v>=2?'border-color:var(--red);background:var(--red-bg);color:var(--red)':''})},
-  'hstep'(el){const v=$('[data-hstep="sleepH"] .val');v.textContent=clamp(num(v.textContent)+num(el.dataset.n),0,14)},
-  'hsave'(){const d=S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();S.health[d]=healthDraft(d);save();const r=readiness(d);toast('Prontidão '+r.score+' · '+r.band.name);S.ui.healthDate=null;render()},
+  // Dor: sem dor → leve → forte → sem dor. Zero toques num dia normal.
+  'hpain'(el){const c=num(el.dataset.v);const v=c>=2?0:c===1?3:1;
+    el.dataset.v=v;const L=(PAIN_SEGS.find(x=>x[0]===el.dataset.k)||[,''])[1];
+    el.className='chip pain '+(v===1?'p1':v>=2?'p2':'');
+    el.textContent=L+(v>=2?' · forte':v===1?' · leve':'')},
+  'hstate'(el){$$('[data-act="hstate"]').forEach(b=>b.classList.toggle('on',b===el))},
+  'hsave'(){const d=hDate();S.health[d]=healthDraft(d);save();const r=readiness(d);toast(r?'Prontidão '+r.score+' · '+r.band.name:'Check-in guardado');S.ui.healthDate=null;render()},
+  'shot-del'(el){const d=hDate();const arr=(S.shots&&S.shots[d])||[];const i=arr.findIndex(s=>s.id===el.dataset.id);
+    if(i<0||!confirm('Apagar este print?'))return;arr.splice(i,1);if(!arr.length)delete S.shots[d];saveNow();render()},
+  'shot-open'(el){const d=hDate();const s=((S.shots&&S.shots[d])||[]).find(x=>x.id===el.dataset.id);if(!s)return;
+    $('#overlay').innerHTML=`<div class="shot-full" data-act="close-sheet"><img src="${s.data}" alt="Print de ${esc(fmtDate(d))}"></div>`},
   // sessão
   'start-session'(){tryStart()},
   'start-anyway'(){const d=today();const r=resolveDay(d);startSession(r.key,r.ov?r.ov.opts:{},{swapReason:r.ov?r.ov.reason:null,swapDetail:r.ov?r.ov.detail:null,planned:r.planned})},
@@ -1447,6 +1552,7 @@ document.addEventListener('change',e=>{
   if(el.dataset.actInput==='import-json'){const f=el.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>importJSONText(rd.result);rd.readAsText(f);el.value=''}
   if(el.dataset.actInput==='import-health'){const f=el.files[0];el.value='';if(f)importHealthFile(f)}
   if(el.dataset.actInput==='import-csv'){const f=el.files[0];el.value='';if(f)importCSVFile(f)}
+  if(el.dataset.actInput==='shot-add'){const f=el.files[0];el.value='';if(f)addShot(hDate(),f)}
 });
 
 // ============================== IMPORTAÇÃO: APPLE HEALTH / CSV ==============================
@@ -1568,6 +1674,8 @@ async function importCSVFile(file){
     const iRhr=find(/resting.*(hr|heart)|rhr|fc.*repouso|repouso/);
     const iSleep=find(/sleep.*(dur|time|hours|total)|^sleep$|sono/);
     const iSteps=find(/^steps$|total steps|step count|passos/);
+    const iScore=find(/sleep.*score|score.*sono|pontua/);
+    const iSlpHr=find(/(sleep|sono).*(hr|heart|card)|(hr|heart).*(sleep|sono)/);
     const iType=find(/activity type|^type$|tipo|sport/);
     const iDur=find(/^(elapsed time|moving time|duration|time|tempo|duração)/);const durSecs=iDur>=0&&/elapsed|moving/.test(head[iDur]); // Strava exporta segundos
     const iHr=find(/avg.*(hr|heart)|average heart|fc m[ée]dia|média/);
@@ -1578,6 +1686,8 @@ async function importCSVFile(file){
       if(iRhr>=0){const v=parseFloat(r[iRhr]);if(v>25&&v<150)daily[d]=Object.assign(daily[d]||{},{rhr:Math.round(v)})}
       if(iSleep>=0){const h=parseSleepHours(r[iSleep]);if(h!=null)daily[d]=Object.assign(daily[d]||{},{sleepH:h})}
       if(iSteps>=0){const n=num(String(r[iSteps]).replace(/[.\s]/g,'').replace(',','.'));if(n>0&&n<200000)daily[d]=Object.assign(daily[d]||{},{steps:Math.round(n)})}
+      if(iScore>=0){const n=parseFloat(String(r[iScore]).replace(',','.'));if(n>0&&n<=100)daily[d]=Object.assign(daily[d]||{},{sleepScore:Math.round(n)})}
+      if(iSlpHr>=0){const n=parseFloat(String(r[iSlpHr]).replace(',','.'));if(n>25&&n<150)daily[d]=Object.assign(daily[d]||{},{sleepHr:Math.round(n)})}
       if(iType>=0||iName>=0){const type=(iType>=0?r[iType]:'')||(iName>=0?r[iName]:'')||'treino';let min=iDur>=0?parseDurationMin(r[iDur]):null;if(durSecs&&min!=null&&/^\d+(\.\d+)?$/.test(String(r[iDur]).trim()))min=parseFloat(r[iDur])/60;if(min&&min>=3){const w={date:d,type:type.trim(),min:Math.round(min),src:/strava/i.test(file.name)?'Strava':'Garmin/CSV'};if(iHr>=0){const hr=parseFloat(r[iHr]);if(hr>40&&hr<230)w.hr=Math.round(hr)}workouts.push(w)}}
     }
     const src=/strava/i.test(file.name)?'Strava':'Garmin/CSV';applyImport({daily,workouts},src);
