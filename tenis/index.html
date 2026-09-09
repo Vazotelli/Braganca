@@ -145,6 +145,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 .toggle.on{background:var(--green-bg);border-color:var(--green)}.toggle.on::after{transform:translateX(20px);background:var(--green)}
 .check{width:28px;height:28px;border-radius:8px;border:2px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;flex:none}
 .check.on{background:var(--green);border-color:var(--green);color:var(--on-accent)}
+.checkbtn{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex:none;border-radius:12px}
+.checkbtn:active{background:var(--card2)}
 
 /* rings */
 .ring{position:relative;display:inline-block;flex:none}
@@ -942,8 +944,46 @@ function initLog(e){
   }
   return {};
 }
+// Marcar um exercício inteiro como feito, sem passar série a série nem esperar pelo cronómetro.
+// Preenche os alvos onde o número não interessa; nos que interessa (serviço, spider, jogo, passos)
+// marca sem inventar dados.
+function hasData(e,log){
+  switch(e.type){
+    case 'servico':return serveTotals(log).n>0;
+    case 'spider':return (log.laps||[]).length>0;
+    case 'jogo':return !!log.result;
+    case 'passos':return log.steps>0||log.min>0;
+  }
+  return true;
+}
+function markExDone(e,log,on){
+  if(on){
+    if(!isDone(e,log)){
+      log.auto=true;
+      switch(e.type){
+        case 'checkbox':log.done=true;break;
+        case 'tempo':log.sets=Math.max(1,e.sets||1);log.secs=(e.sets>1?e.sets:1)*(e.secs||0);break;
+        case 'sets_reps':log.sets.forEach(s=>{s.done=true});break;
+        case 'corrida_intervalos':log.reps=e.reps;break;
+      }
+    }
+    log.ok=true;
+  }else{
+    if(log.auto){
+      switch(e.type){
+        case 'checkbox':log.done=false;break;
+        case 'tempo':log.sets=0;log.secs=0;break;
+        case 'sets_reps':log.sets.forEach(s=>{s.done=false});break;
+        case 'corrida_intervalos':log.reps=0;break;
+      }
+      delete log.auto;
+    }
+    delete log.ok;
+  }
+}
 function isDone(e,log){
   if(!log)return false;
+  if(log.ok)return true;
   switch(e.type){
     case 'checkbox':return !!log.done;
     case 'tempo':return e.sets>1?log.sets>=e.sets:log.secs>=e.secs*0.8;
@@ -1031,7 +1071,7 @@ function renderSession(){
 function exCardHtml(e,b){
   const a=S.active;const log=a.logs[e.id];const done=isDone(e,log);const open=a.open===e.id;
   return `<div class="ex ${done?'done':''} ${open?'open':''}" id="ex-${e.id}">
-    <div class="ex-head" data-act="s-toggle" data-ex="${e.id}"><div class="ill">${svgFor(e.svg)}</div><div class="grow"><div class="nm">${esc(e.name)}</div><div class="tg">${targetText(e)}${e.type==='servico'&&log?(()=>{const t=serveTotals(log);return t.n?` · <span class="num">${t.in}/${t.s} · ${t.t} alvo (${pct(t.t,t.s)}%)</span>`:''})():''}</div></div><div class="check ${done?'on':''}">${done?ICON.check:''}</div><div class="chev">${ICON.chev}</div></div>
+    <div class="ex-head" data-act="s-toggle" data-ex="${e.id}"><div class="ill">${svgFor(e.svg)}</div><div class="grow"><div class="nm">${esc(e.name)}</div><div class="tg">${targetText(e)}${e.type==='servico'&&log?(()=>{const t=serveTotals(log);return t.n?` · <span class="num">${t.in}/${t.s} · ${t.t} alvo (${pct(t.t,t.s)}%)</span>`:''})():''}${done&&!hasData(e,log)?' · <span class="dim">sem registo</span>':''}</div></div><button class="checkbtn" data-act="s-ex-done" data-ex="${e.id}" aria-label="${done?'Desmarcar':'Marcar feito'}"><span class="check ${done?'on':''}">${done?ICON.check:''}</span></button><div class="chev">${ICON.chev}</div></div>
     <div class="ex-body" id="exb-${e.id}">${open?exBodyHtml(e):''}</div></div>`;
 }
 function rerenderEx(id){const a=S.active;if(!a)return;let e=null,bb=null;for(const b of a.session.blocks)for(const x of b.ex)if(x.id===id){e=x;bb=b}if(!e)return;const el=$('#ex-'+id);if(el){const tmp=document.createElement('div');tmp.innerHTML=exCardHtml(e,bb);el.replaceWith(tmp.firstElementChild)}timerPaint()}
@@ -1150,7 +1190,7 @@ function timerBoxHtml(e,log){
   if(e.type==='corrida_intervalos'){
     if(mine){const ph=T.phase||{k:'work',i:1};return `<div class="timer ${ph.k}" id="timer-${id}"><div class="t num">${fmtMMSS(T.total-tElapsed())}</div><div class="st">Rep ${ph.i}/${e.reps} · ${ph.k==='work'?'FORTE':'ANDAR'}</div><div class="btn-row mt12">${T.running?btn('s-t-pause','Pausa'):btn('s-t-resume','Retomar','primary')}${btn('s-t-stop','Parar','danger')}</div></div>`}
     if(log.reps>=e.reps)return `<div class="timer done" id="timer-${id}"><div class="t num">${e.reps}/${e.reps}</div><div class="st g">Intervalos completos</div></div>`;
-    return `<div class="timer" id="timer-${id}"><div class="t num">${fmtMMSS(e.work)}</div><div class="st">${e.reps-log.reps} reps por fazer · ${e.work} s forte / ${e.rest} s a andar</div><div class="btn-row mt12">${btn('s-int-start',log.reps?'Continuar na rep '+(log.reps+1):'Iniciar intervalos','primary')}</div></div>`;
+    return `<div class="timer" id="timer-${id}"><div class="t num">${fmtMMSS(e.work)}</div><div class="st">${e.reps-log.reps} reps por fazer · ${e.work} s forte / ${e.rest} s a andar</div><div class="btn-row mt12">${btn('s-int-start',log.reps?'Continuar na rep '+(log.reps+1):'Iniciar cronómetro','primary')}${btn('s-ex-done','Já fiz')}</div><div class="ghost-hint">O cronómetro é opcional. Se correste sem o telemóvel, toca em "Já fiz".</div></div>`;
   }
   if(e.type==='passos'){
     if(mine)return `<div class="timer work" id="timer-${id}"><div class="t num">${fmtMMSS(tElapsed())}</div><div class="st">${T.running?'A caminhar':'Em pausa'}</div><div class="btn-row mt12">${T.running?btn('s-t-pause','Pausa'):btn('s-t-resume','Retomar','primary')}${btn('s-t-stop','Parar e somar','danger')}</div></div>`;
@@ -1161,7 +1201,7 @@ function timerBoxHtml(e,log){
   const setsLeft=e.type==='sets_reps'?log.sets.filter(s=>!s.done).length:(e.sets>1?e.sets-log.sets:(log.secs>=e.secs?0:1));
   if(mine)return `<div class="timer work" id="timer-${id}"><div class="t num">${fmtMMSS(T.total-tElapsed())}</div><div class="st">${T.running?'A contar':'Em pausa'}</div><div class="btn-row mt12">${T.running?btn('s-t-pause','Pausa'):btn('s-t-resume','Retomar','primary')}${btn('s-t-stop','Parar','danger')}</div></div>`;
   if(setsLeft<=0)return `<div class="timer done" id="timer-${id}"><div class="t num">${fmtMMSS(total)}</div><div class="st g">Completo</div></div>`;
-  return `<div class="timer" id="timer-${id}"><div class="t num">${fmtMMSS(total)}</div><div class="st">Cronómetro · ${e.type==='sets_reps'?'série de '+total+' s':(e.sets>1?'série '+(log.sets+1)+' de '+e.sets:'contagem decrescente')}</div><div class="btn-row mt12">${btn('s-t-start','Iniciar','primary')}</div></div>`;
+  return `<div class="timer" id="timer-${id}"><div class="t num">${fmtMMSS(total)}</div><div class="st">Cronómetro · ${e.type==='sets_reps'?'série de '+total+' s':(e.sets>1?'série '+(log.sets+1)+' de '+e.sets:'contagem decrescente')}</div><div class="btn-row mt12">${btn('s-t-start','Iniciar','primary')}${btn('s-ex-done','Já fiz')}</div></div>`;
 }
 
 // ---------- Fim de sessão ----------
@@ -1170,6 +1210,7 @@ function finishSheet(){
   const done=[];let total=0;for(const b of a.session.blocks)if(!b.blocked)for(const e of b.ex){total++;if(isDone(e,a.logs[e.id]))done.push(e)}
   const sl=summaryLine(a.session,a.logs);
   sheet(`<h2>Terminar sessão</h2><div class="small muted">${done.length}/${total} exercícios concluídos${sl?' · '+esc(sl):''}</div>
+    ${done.length<total?`<button class="btn sm mt12" style="width:100%" data-act="s-fill-rest">Marcar os outros ${total-done.length} como feitos</button><div class="ghost-hint">Para quando treinaste sem o telemóvel. Não inventa números de serviço, spider nem jogo.</div>`:''}
     <div class="field"><label>Duração real</label><div class="row between"><div class="stepper"><button data-act="s-dur" data-n="-5">−</button><div class="val num" style="min-width:80px" id="fin-dur">${dur}<span class="unit">min</span></div><button data-act="s-dur" data-n="5">+</button></div><span class="small muted">cronómetro: ${el} min</span></div></div>
     <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>${rpeGridHtml(a.rpe,'s-rpe')}</div>
     <div class="field"><label>Notas</label><textarea class="input" id="fin-notes" placeholder="o que aprendi, o que ajustar…">${esc(a.notes||'')}</textarea></div>
@@ -1494,7 +1535,11 @@ const ACT={
   // sessão ativa: controlos
   's-exit'(){tPause();$('#fs').innerHTML='';save();render();toast('Sessão guardada como rascunho')},
   's-toggle'(el){const id=el.dataset.ex;const a=S.active;const prev=a.open;a.open=prev===id?null:id;save();if(prev&&prev!==id)rerenderEx(prev);rerenderEx(id);if(a.open){const c=$('#ex-'+id);if(c)setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'start'}),60)}},
-  's-check'(el){const l=S.active.logs[el.dataset.ex];l.done=!l.done;save();rerenderEx(el.dataset.ex)},
+  's-check'(el){const l=S.active.logs[el.dataset.ex];l.done=!l.done;if(!l.done)delete l.ok;save();rerenderEx(el.dataset.ex)},
+  's-ex-done'(el){const e=findEx(el.dataset.ex);const l=S.active.logs[e.id];markExDone(e,l,!isDone(e,l));save();rerenderEx(e.id)},
+  's-fill-rest'(){const a=S.active;let n=0;
+    for(const b of a.session.blocks)if(!b.blocked)for(const e of b.ex){const l=a.logs[e.id];if(!isDone(e,l)){markExDone(e,l,true);n++}}
+    save();renderSession();finishSheet();toast(n+' exercícios marcados como feitos')},
   's-tempo-sets'(el){const e=findEx(el.dataset.ex);const l=S.active.logs[e.id];l.sets=clamp(l.sets+num(el.dataset.n),0,e.sets);l.secs=l.sets*e.secs;save();rerenderEx(e.id)},
   's-tempo-secs'(el){const e=findEx(el.dataset.ex);const l=S.active.logs[e.id];l.secs=clamp(l.secs+num(el.dataset.n),0,3*3600);save();rerenderEx(e.id)},
   's-reps'(el){const l=S.active.logs[el.dataset.ex];const s=l.sets[num(el.dataset.i)];s.reps=clamp(s.reps+num(el.dataset.n),0,120);save();rerenderEx(el.dataset.ex)},
