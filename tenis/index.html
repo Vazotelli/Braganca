@@ -374,7 +374,7 @@ function toast(msg,ms=2200){const t=$('#toast');t.textContent=msg;t.classList.ad
 const KEY='tennisOS.v1';
 function defaultState(){return{
   version:1,createdAt:new Date().toISOString(),
-  settings:{startDate:mondayOf(today()),weekendDay:'both',weekendV2:true,matchDate:'',theme:'dark',stepGoal:6000},
+  settings:{startDate:mondayOf(today()),weekendDay:'both',weekendV2:true,matchDate:'',theme:'dark',stepGoal:6000,age:0,hrMax:0},
   sessions:[],      // registos de sessões concluídas
   health:{},        // 'AAAA-MM-DD' -> check-in diário
   shots:{},         // 'AAAA-MM-DD' -> prints da app do relógio (reduzidos)
@@ -773,6 +773,10 @@ function computeAlerts(d){
 // ============================== RENDER: infra ==============================
 const TAB_TITLES={hoje:'Hoje',plano:'Plano',progresso:'Progresso',saude:'Saúde'};
 function render(){
+  // Sem sessão em curso não pode ficar o ecrã de sessão pendurado: os botões dele iam mexer num
+  // S.active que já não existe e rebentavam em silêncio. Acontecia ao apagar os dados ou ao
+  // importar um backup com uma sessão a decorrer.
+  if(!S.active&&$('#fs').innerHTML)$('#fs').innerHTML='';
   const t=S.ui.tab;
   $$('.screen').forEach(s=>s.classList.toggle('on',s.id==='scr-'+t));
   $$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
@@ -1032,11 +1036,40 @@ async function addShot(d,file){
     if(!saveNow()){arr.pop();render();return}
     const n=applyRead(d,read);
     render();
-    toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
+    toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print'
+      :read.kind==='treino'?'Isto é o resumo de um treino. Anexa-o em "Terminar sessão" para classificar o esforço.'
+      :'Print guardado, mas não reconheci números',read.kind==='treino'?4500:3200);
   }catch(err){
     done=true;clearTimeout(watchdog);
     fail((err&&err.message)||'Falhou a processar a imagem');
   }
+}
+// Lê o print de resumo de um treino e propõe o RPE. Guarda só os números, não a imagem.
+async function rpeFromShot(file){
+  if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
+  if(!S.active){toast('Não há sessão em curso');return}
+  toast('A ler o print…',6000);
+  try{
+    let bmp=null;
+    try{bmp=await createImageBitmap(file)}catch(err){console.warn('createImageBitmap falhou, a usar reserva',err)}
+    const src=bmp||await fileToImg(file);
+    const iw=bmp?bmp.width:src.width, ih=bmp?bmp.height:src.height;
+    const o=fitBox(iw,ih,OCR_MAX_SIDE);
+    const c=document.createElement('canvas');c.width=o.w;c.height=o.h;
+    c.getContext('2d',{willReadFrequently:true}).drawImage(src,0,0,o.w,o.h);
+    const read=readShot(ocrImage(c),o.w,o.h);
+    if(bmp)bmp.close();
+    if(read.kind!=='treino'||!read.hrAvg){
+      toast(read.kind==='sono'||read.kind==='fc'?'Esse é um print do sono/FC em repouso. Preciso do resumo do treino, com a FC média e a máxima.'
+        :'Não encontrei a FC média neste print. Escolhe o RPE à mão.',5000);
+      return;
+    }
+    const a=S.active;a.hrAvg=read.hrAvg;a.hrMax=read.hrMax||null;
+    const ref=hrMaxRef();
+    if(ref){a.rpeAuto=rpeFromHr(read.hrAvg,ref.v);a.rpe=a.rpeAuto}
+    save();finishSheet();
+    toast(ref?'FC média '+read.hrAvg+' → RPE '+a.rpeAuto:'Li FC média '+read.hrAvg+'. Falta a tua FC máxima para propor o RPE.',4000);
+  }catch(err){toast('Não consegui ler o print: '+((err&&err.message)||err),5000)}
 }
 function pruneShots(){ // os números ficam para sempre; as imagens só os últimos 21 dias
   if(!S.shots)return;const lim=addDays(today(),-SHOT_KEEP_DAYS);
@@ -1343,6 +1376,19 @@ function timerBoxHtml(e,log){
   return `<div class="timer" id="timer-${id}"><div class="t num">${fmtMMSS(total)}</div><div class="st">Cronómetro · ${e.type==='sets_reps'?'série de '+total+' s':(e.sets>1?'série '+(log.sets+1)+' de '+e.sets:'contagem decrescente')}</div><div class="btn-row mt12">${btn('s-t-start','Iniciar','primary')}${btn('s-ex-done','Já fiz')}</div></div>`;
 }
 
+// ---------- RPE a partir do print do relógio ----------
+// FC máxima: a medida, se a tiveres; senão a fórmula de Tanaka (208 − 0,7 × idade), que erra menos
+// que a velha 220 − idade; senão a mais alta que já vi nos teus prints (subestima, e é assumido).
+function hrMaxRef(){
+  const s=S.settings;
+  if(s.hrMax>0)return {v:s.hrMax,fonte:'a FC máxima que puseste nas definições'};
+  if(s.age>0)return {v:Math.round(208-0.7*s.age),fonte:'estimativa pela tua idade ('+s.age+' anos)'};
+  let obs=0;for(const r of S.sessions)if(r.hrMax>obs)obs=r.hrMax;
+  if(obs>0)return {v:obs,fonte:'a FC mais alta já vista nos teus prints ('+obs+'), que é um mínimo — o esforço real foi provavelmente menor'};
+  return null;
+}
+// % da FC máxima da média da sessão → RPE. 50% = repouso ativo, 95%+ = máximo.
+function rpeFromHr(hrAvg,hrMax){return clamp(Math.round((100*hrAvg/hrMax-50)/5),1,10)}
 // ---------- Fim de sessão ----------
 function finishSheet(){
   const a=S.active;const el=elapsedMin();const dur=a.durationMin||(el>=10?el:a.session.est);a.durationMin=dur;a.rpe=a.rpe||null;
@@ -1351,7 +1397,17 @@ function finishSheet(){
   sheet(`<h2>Terminar sessão</h2><div class="small muted">${done.length}/${total} exercícios concluídos${sl?' · '+esc(sl):''}</div>
     ${done.length<total?`<button class="btn sm mt12" style="width:100%" data-act="s-fill-rest">Marcar os outros ${total-done.length} como feitos</button><div class="ghost-hint">Para quando treinaste sem o telemóvel. Não inventa números de serviço, spider nem jogo.</div>`:''}
     <div class="field"><label>Duração real</label><div class="row between"><div class="stepper"><button data-act="s-dur" data-n="-5">−</button><div class="val num" style="min-width:80px" id="fin-dur">${dur}<span class="unit">min</span></div><button data-act="s-dur" data-n="5">+</button></div><span class="small muted">cronómetro: ${el} min</span></div></div>
-    <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>${rpeGridHtml(a.rpe,'s-rpe')}</div>
+    <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>${rpeGridHtml(a.rpe,'s-rpe')}
+      ${(()=>{
+        if(a.hrAvg){
+          const ref=hrMaxRef();
+          return `<div class="alert g mt8" style="margin-left:0;margin-right:0">${ICON.check}<div><b>Lido do print: FC média ${a.hrAvg}${a.hrMax?', máxima '+a.hrMax:''}</b>${
+            a.rpeAuto?'Dá '+Math.round(100*a.hrAvg/ref.v)+'% da FC máxima, o que corresponde a RPE '+a.rpeAuto+'. Usei '+ref.v+' bpm como FC máxima, por '+esc(ref.fonte)+'. Muda o RPE se não bateu certo com o que sentiste.'
+              :'Falta saber a tua FC máxima para converter isto num RPE. Põe a idade nas Definições, ou escolhe o RPE à mão.'}</div></div>`;
+        }
+        return `<label class="btn sm mt8" style="width:100%">Classificar pelo print do relógio<input type="file" accept="image/*" class="hide" data-act-input="rpe-shot"></label>
+          <div class="ghost-hint">Anexa o resumo do treino (o ecrã com FC média e máxima). Leio os números e proponho o RPE; a imagem não fica guardada.</div>`;
+      })()}</div>
     <div class="field"><label>Notas</label><textarea class="input" id="fin-notes" placeholder="o que aprendi, o que ajustar…">${esc(a.notes||'')}</textarea></div>
     <div class="sheet-foot"><button class="btn primary" style="min-height:54px;width:100%" data-act="s-save-final">Guardar sessão</button>
     <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Voltar à sessão</button></div>`);
@@ -1388,6 +1444,7 @@ function saveActive(){
   const rec={id:a.id,date:a.date,key:a.key,planned:a.planned,name:s.name,short:s.short,intensity:s.intensity,factor:s.factor,opts:s.opts||{},
     durationMin:isLesson?aula.durationMin:(a.durationMin||s.est),rpe:isLesson?aula.rpe:(a.rpe||null),notes:isLesson?aula.notes:(a.notes||''),
     startedAt:a.startedAt,endedAt:Date.now(),logs:a.logs,swapReason:a.swapReason,swapDetail:a.swapDetail,extra:a.extra,
+    hrAvg:a.hrAvg||null,hrMax:a.hrMax||null,rpeAuto:a.rpeAuto||null,
     exercises:s.blocks.flatMap(b=>b.ex.map(e=>({id:e.id,name:e.name,type:e.type,sets:e.sets,reps:e.reps,unit:e.unit,perSide:e.perSide,rounds:e.rounds,secs:e.secs,repsTarget:e.reps}))),
     summaryLine:summaryLine(s,a.logs),stats:sessionStats(s,a.logs)};
   S.sessions.push(rec);
@@ -1587,6 +1644,9 @@ function openSettings(){
     <div class="field"><label>Dias de fim de semana disponíveis</label><div class="seg"><button class="${s.weekendDay==='sat'?'on':''}" data-act="set-weekend" data-v="sat">Sábado</button><button class="${s.weekendDay==='sun'?'on':''}" data-act="set-weekend" data-v="sun">Domingo</button><button class="${s.weekendDay==='both'?'on':''}" data-act="set-weekend" data-v="both">Ambos</button></div><div class="xs muted mt4">${s.weekendDay==='both'?'Sábado: pernas + serviço curto. Domingo: potência, core e sombra de revés. A força divide-se, não se repete.':'Um dia só: força completa + serviço curto, ou jogo se marcares.'}</div></div>
     <div class="field"><label>Meta de passos por caminhada</label><div class="row between"><div class="stepper"><button data-act="set-stepgoal" data-n="-1000">−</button><div class="val num" style="min-width:80px">${fmtN(s.stepGoal||6000)}</div><button data-act="set-stepgoal" data-n="1000">+</button></div><div class="small muted">passos</div></div></div>
     <div class="field"><label>Data da prova / torneio (opcional)</label><input type="date" class="input" value="${s.matchDate||''}" data-set="matchDate"><div class="xs muted mt4">A semana da prova corta 40% do volume técnico e tira a força pesada nos 3 dias anteriores.</div></div>
+    <div class="field"><label>Idade e FC máxima (para classificar o esforço pelo print do relógio)</label>
+      <div class="row" style="gap:8px"><input class="input num" type="number" inputmode="numeric" placeholder="idade" value="${s.age||''}" data-setn="age" style="width:50%"><input class="input num" type="number" inputmode="numeric" placeholder="FC máx (opcional)" value="${s.hrMax||''}" data-setn="hrMax" style="width:50%"></div>
+      <div class="xs muted mt4">${(()=>{const r=hrMaxRef();return r?'A usar <b class="num">'+r.v+' bpm</b> como FC máxima, por '+esc(r.fonte)+'.':'Sem isto não consigo converter a FC média do print num RPE. A idade chega: uso 208 − 0,7 × idade.'})()}</div></div>
     <div class="field"><label>Tema</label><div class="seg"><button class="${s.theme!=='light'?'on':''}" data-act="set-theme" data-v="dark">Escuro</button><button class="${s.theme==='light'?'on':''}" data-act="set-theme" data-v="light">Claro</button></div></div>
     <div class="sec" style="padding:0;margin-top:20px">Sincronização</div>
     <div class="row between mt4"><div class="row" style="gap:8px"><span class="sync-dot ${SYNC.state}"></span><b>${SYNC_TXT[SYNC.state]||SYNC.state}</b></div>${SYNC.db?`<button class="btn xs ghost" data-act="sync-now">Sincronizar agora</button>`:''}</div>
@@ -1617,17 +1677,29 @@ async function exportJSON(withShots){
 function importJSONText(txt){
   let obj;try{obj=JSON.parse(txt)}catch(e){toast('JSON inválido',3000);return false}
   if(!obj||typeof obj!=='object'||!Array.isArray(obj.sessions)||typeof obj.health!=='object'){toast('Isto não é um backup do Tennis OS',3000);return false}
-  if(!confirm(`Importar ${obj.sessions.length} sessões e ${Object.keys(obj.health).length} check-ins? Substitui os dados atuais.`))return false;
-  const prev=S.rev||0;
-  S=migrate(obj);
-  S.rev=Math.max(S.rev||0,prev); // fica acima do que está no servidor, senão o sync desfazia a importação
-  saveNow();applyTheme();closeSheet();render();toast('Importado com sucesso');return true;
+  pergunta('Importar este backup?',`${obj.sessions.length} sessões e ${Object.keys(obj.health).length} check-ins. Substitui os dados atuais deste dispositivo.`,'Importar',()=>{
+    const prev=S.rev||0;
+    S=migrate(obj);
+    S.rev=Math.max(S.rev||0,prev); // fica acima do que está no servidor, senão o sync desfazia a importação
+    saveNow();applyTheme();render();toast('Importado com sucesso');
+  });
+  return true;
 }
 function applyTheme(){document.documentElement.dataset.theme=S.settings.theme==='light'?'light':'dark';const m=$('meta[name=theme-color]');if(m)m.content=S.settings.theme==='light'?'#EEF1F5':'#0B0E11'}
 
 // ============================== SHEET / OVERLAY ==============================
 function sheet(html){$('#overlay').innerHTML=`<div class="backdrop" data-act="close-sheet"><div class="sheet"><div class="grab"></div><button class="sheet-x" data-act="close-sheet" aria-label="Fechar">${ICON.x}</button>${html}</div></div>`}
 function closeSheet(){$('#overlay').innerHTML=''}
+// Confirmações dentro da app, e não com confirm()/prompt() do browser: publicada, a app corre numa
+// iframe com sandbox sem "allow-modals", onde confirm() devolve false sem sequer mostrar nada — ou
+// seja, o botão não fazia nada e não havia forma de perceber porquê.
+let PERGUNTA=null;
+function pergunta(titulo,texto,rotulo,fn,perigo){
+  PERGUNTA=fn;
+  sheet(`<h2>${esc(titulo)}</h2>${texto?`<div class="small muted mt4">${esc(texto)}</div>`:''}
+    <div class="sheet-foot"><button class="btn ${perigo?'danger':'primary'}" style="width:100%" data-act="confirm-ok">${esc(rotulo)}</button>
+    <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Cancelar</button></div>`);
+}
 
 // ============================== AÇÕES ==============================
 const ACT={
@@ -1642,10 +1714,14 @@ const ACT={
   export(){exportJSON(false)},
   'export-shots'(){exportJSON(true)},
   'copy-json'(){const txt=JSON.stringify(Object.assign({},S,{shots:{}}));if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast('JSON copiado ('+(txt.length/1024).toFixed(0)+' KB)'),()=>toast('Não consegui copiar'));else toast('Clipboard indisponível')},
-  'paste-json'(){const txt=prompt('Cola aqui o JSON do backup:');if(txt)importJSONText(txt)},
-  'reset-all'(){if(confirm('Apagar TODOS os dados desta app? Não há volta.')){if(confirm('Mesmo? Exportaste o JSON primeiro?')){
+  'paste-json'(){sheet(`<h2>Colar JSON</h2><div class="small muted mt4">Cola aqui o conteúdo do ficheiro de backup.</div>
+    <div class="field"><textarea class="input" id="paste-box" style="min-height:160px" placeholder='{"version":1,...}'></textarea></div>
+    <div class="sheet-foot"><button class="btn primary" style="width:100%" data-act="paste-go">Importar</button>
+    <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Cancelar</button></div>`)},
+  'paste-go'(){const el=$('#paste-box');const txt=el?el.value.trim():'';if(!txt){toast('Cola o JSON primeiro');return}importJSONText(txt)},
+  'reset-all'(){pergunta('Apagar todos os dados?','Sessões, check-ins, trocas e definições. Não há volta. Exporta o JSON primeiro se ainda não o fizeste.','Apagar tudo',()=>{
     const prev=S.rev||0;S=defaultState();S.rev=prev; // apagar tem de ganhar ao que está no servidor
-    saveNow();closeSheet();applyTheme();render();toast('Dados apagados')}}},
+    saveNow();applyTheme();render();toast('Dados apagados')},true)},
   'plan-week'(el){const mon=S.ui.planWeek||mondayOf(today());S.ui.planWeek=addDays(mon,7*num(el.dataset.n));S.ui.planSel=null;save();render()},
   'plan-sel'(el){S.ui.planSel=el.dataset.d;save();render()},
   'undo-override'(el){const d=el.dataset.d;delete S.overrides[d];S.swaps=S.swaps.filter(s=>!(s.date===d&&!s.done));save();render();toast('Troca anulada')},
@@ -1658,8 +1734,11 @@ const ACT={
     el.textContent=L+(v>=2?' · forte':v===1?' · leve':'')},
   'hstate'(el){$$('[data-act="hstate"]').forEach(b=>b.classList.toggle('on',b===el))},
   'hsave'(){const d=hDate();S.health[d]=healthDraft(d);save();const r=readiness(d);toast(r?'Prontidão '+r.score+' · '+r.band.name:'Check-in guardado');S.ui.healthDate=null;render()},
-  'shot-del'(el){const d=hDate();const arr=(S.shots&&S.shots[d])||[];const i=arr.findIndex(s=>s.id===el.dataset.id);
-    if(i<0||!confirm('Apagar este print?'))return;arr.splice(i,1);if(!arr.length)delete S.shots[d];saveNow();render()},
+  'shot-del'(el){const d=hDate();const id=el.dataset.id;
+    if(!((S.shots&&S.shots[d])||[]).some(s=>s.id===id))return;
+    pergunta('Apagar este print?','Os números que já foram lidos do print ficam guardados.','Apagar',()=>{
+      const arr=(S.shots&&S.shots[d])||[];const i=arr.findIndex(s=>s.id===id);if(i<0)return;
+      arr.splice(i,1);if(!arr.length)delete S.shots[d];saveNow();render();toast('Print apagado')},true)},
   'shot-open'(el){const d=hDate();const s=((S.shots&&S.shots[d])||[]).find(x=>x.id===el.dataset.id);if(!s)return;
     $('#overlay').innerHTML=`<div class="shot-full" data-act="close-sheet"><img src="${s.data}" alt="Print de ${esc(fmtDate(d))}"></div>`},
   // sessão
@@ -1669,9 +1748,13 @@ const ACT={
   'start-mob'(){const d=today();const r=resolveDay(d);S.overrides[d]={key:'MOB',opts:{},reason:'tired',detail:'prontidão baixa'};S.swaps=S.swaps.filter(x=>x.date!==d);S.swaps.push({date:d,from:r.planned,to:'MOB',reason:'tired',detail:'prontidão baixa',at:new Date().toISOString(),done:false});save();startSession('MOB',{},{swapReason:'tired',swapDetail:'prontidão baixa',planned:r.planned})},
   'start-walk'(){confirmSwap('walk','aviso antes de iniciar',true)},
   'resume-session'(){renderSession()},
-  'discard-session'(){if(confirm('Descartar a sessão em curso? Os registos parciais perdem-se.')){S.active=null;T.exId=null;save();$('#fs').innerHTML='';render()}},
+  'discard-session'(){pergunta('Descartar a sessão em curso?','Os registos parciais perdem-se. Se quiseres guardar o que fizeste, usa antes "Terminar sessão".','Descartar',()=>{
+    S.active=null;T.exId=null;save();$('#fs').innerHTML='';render();toast('Sessão descartada')},true)},
   'view-session'(el){viewSession(el.dataset.id)},
-  'delete-session'(el){if(confirm('Apagar este registo?')){S.sessions=S.sessions.filter(s=>s.id!==el.dataset.id);save();closeSheet();render();toast('Registo apagado')}},
+  'confirm-ok'(){const fn=PERGUNTA;PERGUNTA=null;closeSheet();if(fn)fn()},
+  'delete-session'(el){const id=el.dataset.id;const r=S.sessions.find(s=>s.id===id);
+    pergunta('Apagar este registo?',r?esc(r.name)+' · '+fmtDate(r.date):'',  'Apagar',()=>{
+      S.sessions=S.sessions.filter(s=>s.id!==id);save();render();toast('Registo apagado')},true)},
   'start-extra'(){extraChooser()},
   'extra-start'(el){startSession(el.dataset.k,{},{extra:true,planned:plannedKey(today())})},
   'log-past'(el){S.ui.pastKey=S.ui.pastKey||'S1';S.ui.pastDur=null;S.ui.pastRpe=6;logPastSheet(el.dataset.d)},
@@ -1749,10 +1832,12 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.set){S.settings[el.dataset.set]=el.value;if(el.dataset.set==='startDate'&&el.value){S.settings.startDate=mondayOf(el.value)}save();render();return}
+  if(el.dataset.setn){S.settings[el.dataset.setn]=clamp(num(el.value),0,250);save();openSettings();return}
   if(el.dataset.actInput==='import-json'){const f=el.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>importJSONText(rd.result);rd.readAsText(f);el.value=''}
   if(el.dataset.actInput==='import-health'){const f=el.files[0];el.value='';if(f)importHealthFile(f)}
   if(el.dataset.actInput==='import-csv'){const f=el.files[0];el.value='';if(f)importCSVFile(f)}
   if(el.dataset.actInput==='shot-add'){const f=el.files[0];el.value='';if(f)addShot(hDate(),f)}
+  if(el.dataset.actInput==='rpe-shot'){const f=el.files[0];el.value='';if(f)rpeFromShot(f)}
 });
 
 // ============================== IMPORTAÇÃO: APPLE HEALTH / CSV ==============================
@@ -2015,6 +2100,20 @@ function ocrImage(cv){
   return runs.filter(r=>r.s.length<=4).map(r=>({v:+r.s,n:r.s.length,x:r.x,y:r.y,w:r.w,h:r.h}));
 }
 // Aplica as regras de leitura dos dois ecrãs do relógio
+// Que ecrã é este print? Sem isto, um print de treino era lido como se fosse de sono: o ritmo
+// 6'33" tem exatamente a forma de uma duração (6 h 33 min) e ia parar às horas de sono.
+// Na dúvida não inventa: devolve o tipo e só se aplicam as regras desse tipo.
+function shotKind(runs,W,H){
+  const cima=runs.filter(r=>r.y+r.h/2<H*0.5);
+  for(const a of cima)for(const b of cima){
+    if(a===b)continue;
+    if(!(a.x+a.w<W*0.5&&b.x>W*0.5))continue;                       // um em cada metade
+    if(Math.abs((a.y+a.h/2)-(b.y+b.h/2))>Math.max(a.h,b.h)*0.6)continue; // mesma linha
+    if(a.n===3&&b.n===3&&a.v>=90&&a.v<=220&&b.v>=90&&b.v<=220&&b.v>=a.v)return 'treino'; // FC média + máxima
+    if(a.v>=35&&a.v<=110&&b.v>=35&&b.v<=110)return 'fc';           // FC repouso + FC no sono
+  }
+  return 'sono';
+}
 function readShot(runs,W,H){
   const out={};
   const rows=[];
@@ -2023,6 +2122,17 @@ function readShot(runs,W,H){
     if(L){L.items.push(r)}else rows.push({y:r.y+r.h/2,items:[r]});
   }
   for(const L of rows)L.items.sort((a,b)=>a.x-b.x);
+  out.kind=shotKind(runs,W,H);
+  if(out.kind==='treino'){ // ecrã de um treino: FC média e FC máxima
+    for(const L of rows){
+      if(L.items.length!==2)continue;
+      const [a,b]=L.items;
+      if(a.n!==3||b.n!==3||a.v<90||a.v>220||b.v<90||b.v>220||b.v<a.v)continue;
+      if(!(a.x+a.w<W*0.5&&b.x>W*0.5))continue;
+      out.hrAvg=a.v;out.hrMax=b.v;break;
+    }
+    return out;
+  }
   // FC: primeira linha com exatamente 2 números plausíveis, um em cada metade
   for(const L of rows){
     if(L.items.length!==2)continue;
