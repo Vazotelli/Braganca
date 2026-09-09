@@ -1159,9 +1159,11 @@ function isDone(e,log){
   switch(e.type){
     case 'checkbox':return !!log.done;
     case 'tempo':return e.sets>1?log.sets>=e.sets:log.secs>=e.secs*0.8;
-    case 'sets_reps':return log.sets.length>0&&log.sets.every(s=>s.done);
-    case 'servico':return log.rounds.every(r=>r.in!=null);
-    case 'spider':return log.laps.length>=e.reps;
+    // tolerante à forma: um registo antigo ou vindo de outro dispositivo pode não ter o campo.
+    // Sem isto, um campo em falta rebentava aqui e levava atrás o "Terminar sessão" inteiro.
+    case 'sets_reps':return Array.isArray(log.sets)&&log.sets.length>0&&log.sets.every(s=>s&&s.done);
+    case 'servico':return Array.isArray(log.rounds)&&log.rounds.length>0&&log.rounds.every(r=>r&&r.in!=null);
+    case 'spider':return (log.laps||[]).length>=e.reps;
     case 'corrida_intervalos':return log.reps>=e.reps;
     case 'jogo':return !!log.result;
     case 'aula':return true;
@@ -1392,8 +1394,11 @@ function rpeFromHr(hrAvg,hrMax){return clamp(Math.round((100*hrAvg/hrMax-50)/5),
 // ---------- Fim de sessão ----------
 function finishSheet(){
   const a=S.active;const el=elapsedMin();const dur=a.durationMin||(el>=10?el:a.session.est);a.durationMin=dur;a.rpe=a.rpe||null;
-  const done=[];let total=0;for(const b of a.session.blocks)if(!b.blocked)for(const e of b.ex){total++;if(isDone(e,a.logs[e.id]))done.push(e)}
-  const sl=summaryLine(a.session,a.logs);
+  const done=[];let total=0;
+  for(const b of a.session.blocks)if(!b.blocked)for(const e of b.ex){total++;
+    let d=false;try{d=isDone(e,a.logs[e.id])}catch(err){console.warn('isDone falhou em '+e.id,err)}
+    if(d)done.push(e)}
+  let sl='';try{sl=summaryLine(a.session,a.logs)}catch(err){console.warn('resumo falhou',err)}
   sheet(`<h2>Terminar sessão</h2><div class="small muted">${done.length}/${total} exercícios concluídos${sl?' · '+esc(sl):''}</div>
     ${done.length<total?`<button class="btn sm mt12" style="width:100%" data-act="s-fill-rest">Marcar os outros ${total-done.length} como feitos</button><div class="ghost-hint">Para quando treinaste sem o telemóvel. Não inventa números de serviço, spider nem jogo.</div>`:''}
     <div class="field"><label>Duração real</label><div class="row between"><div class="stepper"><button data-act="s-dur" data-n="-5">−</button><div class="val num" style="min-width:80px" id="fin-dur">${dur}<span class="unit">min</span></div><button data-act="s-dur" data-n="5">+</button></div><span class="small muted">cronómetro: ${el} min</span></div></div>
@@ -1416,10 +1421,10 @@ function summaryLine(sess,logs){
   const parts=[];
   for(const b of sess.blocks)for(const e of b.ex){const l=logs[e.id];if(!l)continue;
     if(e.type==='servico'){const t=serveTotals(l);if(t.n)parts.push(`${t.in}/${t.s} dentro, ${t.t} no alvo (${pct(t.t,t.s)}%)`)}
-    if(e.type==='spider'&&l.laps.length)parts.push('spider '+fmtLap(Math.min(...l.laps)));
+    if(e.type==='spider'&&(l.laps||[]).length)parts.push('spider '+fmtLap(Math.min(...l.laps)));
     if(e.type==='corrida_intervalos'&&l.reps)parts.push(l.reps+'/'+e.reps+' intervalos');
     if(e.type==='jogo'&&l.result)parts.push((l.result==='W'?'Vitória':'Derrota')+(l.score?' '+l.score:'')+(l.opp?' vs '+l.opp:''));
-    if(e.type==='aula')parts.push('Aula'+(l.chips.length?' · '+l.chips.join(', '):'')+(l.serves?' · ~'+l.serves+' serviços':''));
+    if(e.type==='aula')parts.push('Aula'+((l.chips||[]).length?' · '+l.chips.join(', '):'')+(l.serves?' · ~'+l.serves+' serviços':''));
     if(e.type==='passos'&&(l.steps||l.min))parts.push(fmtN(l.steps)+' passos'+(l.min?' em '+l.min+' min':''));
   }
   return parts.join(' · ');
@@ -1427,9 +1432,9 @@ function summaryLine(sess,logs){
 function sessionStats(sess,logs){
   const st={strength:{},serve:null,spider:null,rope:0,jogo:null,intervals:null,steps:null};
   for(const b of sess.blocks)for(const e of b.ex){const l=logs[e.id];if(!l)continue;
-    if(e.type==='sets_reps'&&e.unit!=='s'){const reps=sum(l.sets.filter(s=>s.done).map(s=>s.reps*(e.perSide?2:1)));if(reps)st.strength[e.id]=reps}
+    if(e.type==='sets_reps'&&e.unit!=='s'){const reps=sum((Array.isArray(l.sets)?l.sets:[]).filter(s=>s&&s.done).map(s=>s.reps*(e.perSide?2:1)));if(reps)st.strength[e.id]=reps}
     if(e.type==='servico'){const t=serveTotals(l);if(t.n){st.serve=st.serve?{s:st.serve.s+t.s,in:st.serve.in+t.in,t:st.serve.t+t.t}:{s:t.s,in:t.in,t:t.t}}}
-    if(e.type==='spider'&&l.laps.length)st.spider={best:Math.min(...l.laps),mean:mean(l.laps),laps:l.laps.length};
+    if(e.type==='spider'&&(l.laps||[]).length)st.spider={best:Math.min(...l.laps),mean:mean(l.laps),laps:l.laps.length};
     if(e.type==='tempo'&&/corda/.test(e.id))st.rope+=l.secs/60;
     if(e.type==='jogo'&&l.result)st.jogo={opp:l.opp,sets:l.sets,result:l.result,score:l.score,firstPct:l.firstPct,df:l.df};
     if(e.type==='corrida_intervalos')st.intervals={reps:l.reps,of:e.reps};
@@ -1438,17 +1443,25 @@ function sessionStats(sess,logs){
   return st;
 }
 function saveActive(){
-  const a=S.active;if(!a)return;
-  const s=a.session;const isLesson=s.lesson;
+  const a=S.active;
+  if(!a){toast('Não há sessão em curso para guardar',4000);return}
+  const s=a.session;const isLesson=s.lesson&&a.logs&&a.logs.aula;
   const aula=isLesson?a.logs.aula:null;
+  a.logs=a.logs||{};
+  // O resumo e as estatísticas são só enfeite: se um registo tiver a forma errada, guarda-se a
+  // sessão na mesma sem eles. Perder o treino todo por causa de um campo estranho não é opção.
+  let resumo='',stats={strength:{},serve:null,spider:null,rope:0,jogo:null,intervals:null,steps:null};
+  try{resumo=summaryLine(s,a.logs)}catch(err){console.warn('resumo falhou',err)}
+  try{stats=sessionStats(s,a.logs)}catch(err){console.warn('estatísticas falharam',err)}
   const rec={id:a.id,date:a.date,key:a.key,planned:a.planned,name:s.name,short:s.short,intensity:s.intensity,factor:s.factor,opts:s.opts||{},
     durationMin:isLesson?aula.durationMin:(a.durationMin||s.est),rpe:isLesson?aula.rpe:(a.rpe||null),notes:isLesson?aula.notes:(a.notes||''),
     startedAt:a.startedAt,endedAt:Date.now(),logs:a.logs,swapReason:a.swapReason,swapDetail:a.swapDetail,extra:a.extra,
     hrAvg:a.hrAvg||null,hrMax:a.hrMax||null,rpeAuto:a.rpeAuto||null,
     exercises:s.blocks.flatMap(b=>b.ex.map(e=>({id:e.id,name:e.name,type:e.type,sets:e.sets,reps:e.reps,unit:e.unit,perSide:e.perSide,rounds:e.rounds,secs:e.secs,repsTarget:e.reps}))),
-    summaryLine:summaryLine(s,a.logs),stats:sessionStats(s,a.logs)};
+    summaryLine:resumo,stats};
   S.sessions.push(rec);
-  for(const b of s.blocks)for(const e of b.ex)if(a.logs[e.id]&&isDone(e,a.logs[e.id]))S.lastLogs[e.id]=JSON.parse(JSON.stringify(a.logs[e.id]));
+  try{for(const b of s.blocks)for(const e of b.ex)if(a.logs[e.id]&&isDone(e,a.logs[e.id]))S.lastLogs[e.id]=JSON.parse(JSON.stringify(a.logs[e.id]))}
+  catch(err){console.warn('lastLogs falhou',err)}
   if(S.overrides[a.date]){delete S.overrides[a.date];S.swaps.forEach(x=>{if(x.date===a.date)x.done=true})}
   S.active=null;T.exId=null;T.running=false;save();
   $('#fs').innerHTML='';closeSheet();S.ui.tab='hoje';render();
@@ -1811,13 +1824,21 @@ const ACT={
   's-finish'(){tPause();finishSheet()},
   's-dur'(el){const a=S.active;a.durationMin=clamp((a.durationMin||a.session.est)+num(el.dataset.n),5,300);$('#fin-dur').innerHTML=a.durationMin+'<span class="unit">min</span>';save()},
   's-rpe'(el){S.active.rpe=num(el.dataset.v);save();$$('[data-act="s-rpe"]').forEach(b=>b.classList.toggle('on',b===el))},
-  's-save-final'(){const a=S.active;a.notes=$('#fin-notes').value;saveActive()}
+  's-save-final'(){const a=S.active;if(!a){toast('Não há sessão em curso para guardar',4000);return}
+    const n=$('#fin-notes');if(n)a.notes=n.value;saveActive()}
 };
 function findEx(id){for(const b of S.active.session.blocks)for(const e of b.ex)if(e.id===id)return e;return null}
+// Um botão nunca pode falhar calado: se o que está por trás rebentar, aparece a razão no ecrã.
+// Foi assim que vários botões pareceram "não fazer nada" — a exceção morria aqui sem deixar rasto.
 document.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
   if(el.tagName==='LABEL')return; // deixa o input file abrir
-  const fn=ACT[el.dataset.act];if(fn){fn(el,e)}
+  const fn=ACT[el.dataset.act];if(!fn){console.warn('sem ação para',el.dataset.act);return}
+  try{fn(el,e)}
+  catch(err){
+    console.error('ação "'+el.dataset.act+'" falhou:',err);
+    toast('Isto falhou ('+el.dataset.act+'): '+((err&&err.message)||err)+'. Diz-me esta mensagem.',6000);
+  }
 });
 document.addEventListener('input',e=>{
   const el=e.target;if(!el.dataset.log||!S.active)return;
