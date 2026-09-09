@@ -24,12 +24,12 @@
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Inter,Roboto,Arial,sans-serif;
 }
 [data-theme=light]{--bg:#EEF1F5;--card:#FFFFFF;--card2:#F3F5F8;--card3:#E7EBF0;--line:rgba(11,14,17,.08);--line2:rgba(11,14,17,.16);--text:#0B0E11;--muted:#4F5B68;--dim:#8B97A5;--bar:rgba(238,241,245,.88)}
-html{background:var(--bg);-webkit-text-size-adjust:100%;height:100%}
+html{background:var(--bg);-webkit-text-size-adjust:100%;height:100%;scroll-padding-top:72px;scroll-padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 16px)}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100%;-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.35;overscroll-behavior-y:none;touch-action:manipulation}
 button,input,select,textarea{font-family:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 input,textarea,select{font-size:16px}
-#app{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 12px)}
+#app{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 28px)}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum","lnum"}
 .muted{color:var(--muted)}.dim{color:var(--dim)}.small{font-size:12px}.xs{font-size:11px}
 .g{color:var(--green)}.y{color:var(--yellow)}.o{color:var(--orange)}.r{color:var(--red)}.b{color:var(--blue)}
@@ -57,6 +57,10 @@ input,textarea,select{font-size:16px}
 .screen{display:none;padding:14px 0 8px}
 .screen.on{display:block;animation:fadeUp .22s cubic-bezier(.22,1,.36,1)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* Sem transform: um ascendente com transform passa a ser o bloco de referência dos position:fixed
+   que tem dentro. Usada onde há barras fixas por baixo (a de "Terminar sessão"), senão durante a
+   animação a barra descola do fundo do ecrã e fica por cima da lista a apanhar os toques. */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
 .sec{padding:0 16px;margin:18px 0 8px;font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 .sec:first-child{margin-top:0}
@@ -207,14 +211,24 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;heigh
 .list .item.tap:active{opacity:.7}
 
 /* sheets & overlays */
-.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:80;display:flex;align-items:flex-end;justify-content:center;animation:fadeUp .15s}
-.sheet{position:relative;background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:90vh;overflow:auto;padding:12px 16px calc(18px + env(safe-area-inset-bottom));animation:slideUp .25s cubic-bezier(.22,1,.36,1);-webkit-overflow-scrolling:touch}
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:80;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .15s}
+/* 90dvh (e não 90vh) porque no Safari do iPhone vh conta com as barras escondidas: a folha ficava
+   mais alta que o ecrã visível e o botão principal caía por baixo da área tocável. */
+.sheet{position:relative;background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:480px;max-height:90vh;max-height:90dvh;overflow:auto;padding:12px 16px 0;animation:slideUp .25s cubic-bezier(.22,1,.36,1);-webkit-overflow-scrolling:touch}
+.sheet>*:last-child:not(.sheet-foot){margin-bottom:calc(18px + env(safe-area-inset-bottom))}
+/* Rodapé colado ao fundo da folha: a ação principal fica sempre à vista, mesmo com a folha a rolar. */
+.sheet-foot{position:sticky;bottom:0;margin:16px -16px 0;padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);z-index:2}
+.sheet-foot>*+*{margin-top:8px}
 .sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line2);margin:0 auto 12px}
 .sheet-x{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:var(--card2);color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:1}
 .sheet-x svg{width:16px;height:16px}
 .sheet h2{font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px}
-.fullscreen{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch;animation:fadeUp .22s cubic-bezier(.22,1,.36,1)}
-.fullscreen .inner{max-width:480px;margin:0 auto;padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+/* scroll-padding: ao abrir um exercício a app faz scrollIntoView; sem isto o cabeçalho do exercício
+   ia parar por baixo da barra fixa de cima (ou da de baixo) e parecia que o toque não tinha feito nada. */
+.fullscreen{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch;animation:fadeIn .22s cubic-bezier(.22,1,.36,1);scroll-padding-top:calc(70px + env(safe-area-inset-top));scroll-padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+/* folga por baixo maior que a barra de "Terminar sessão" (≈77px + área segura), senão o último
+   exercício da lista fica por baixo dela e não há mais scroll para o tirar de lá. */
+.fullscreen .inner{max-width:480px;margin:0 auto;padding-bottom:calc(150px + env(safe-area-inset-bottom))}
 .fs-bar{position:sticky;top:0;z-index:5;background:var(--bar);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
 .fs-bar .title{font-weight:800;font-size:16px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fs-foot{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bar);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--line);z-index:6}
@@ -1160,12 +1174,12 @@ function tryStart(){
   else if(rd&&!rd.weak&&rd.score<60&&!(opts.factor&&opts.factor<=0.6))warns.push(`<b>Prontidão ${rd.score} (laranja).</b> A recomendação é a versão a 60% do volume.`);
   if(!warns.length){startSession(r.key,opts,meta);return}
   sheet(`<h2>Antes de começar</h2>${warns.map(w=>`<div class="alert y" style="margin:10px 0 0">${ICON.warn}<div>${w}</div></div>`).join('')}
-    <div class="mt16 col" style="gap:8px">
-      ${sess.physical?`<button class="btn warn" data-act="start-reduced">Iniciar a 60% do volume</button>`:''}
-      <button class="btn" data-act="start-anyway">Iniciar mesmo assim</button>
-      <button class="btn ghost" data-act="start-walk">Caminhada em vez do treino</button>
-      <button class="btn ghost" data-act="start-mob">Só mobilidade (20 min)</button>
-      <button class="btn ghost sm" data-act="close-sheet">Cancelar</button></div>`);
+    <div class="sheet-foot">
+      ${sess.physical?`<button class="btn warn" style="width:100%" data-act="start-reduced">Iniciar a 60% do volume</button>`:''}
+      <button class="btn" style="width:100%" data-act="start-anyway">Iniciar mesmo assim</button>
+      <button class="btn ghost" style="width:100%" data-act="start-walk">Caminhada em vez do treino</button>
+      <button class="btn ghost" style="width:100%" data-act="start-mob">Só mobilidade (20 min)</button>
+      <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Cancelar</button></div>`);
 }
 function elapsedMin(){return S.active?Math.round((Date.now()-S.active.startedAt)/60000):0}
 function renderSession(){
@@ -1339,8 +1353,8 @@ function finishSheet(){
     <div class="field"><label>Duração real</label><div class="row between"><div class="stepper"><button data-act="s-dur" data-n="-5">−</button><div class="val num" style="min-width:80px" id="fin-dur">${dur}<span class="unit">min</span></div><button data-act="s-dur" data-n="5">+</button></div><span class="small muted">cronómetro: ${el} min</span></div></div>
     <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>${rpeGridHtml(a.rpe,'s-rpe')}</div>
     <div class="field"><label>Notas</label><textarea class="input" id="fin-notes" placeholder="o que aprendi, o que ajustar…">${esc(a.notes||'')}</textarea></div>
-    <div class="btn-row mt16"><button class="btn primary" style="min-height:54px" data-act="s-save-final">Guardar sessão</button></div>
-    <button class="btn ghost sm mt8" data-act="close-sheet">Voltar à sessão</button>`);
+    <div class="sheet-foot"><button class="btn primary" style="min-height:54px;width:100%" data-act="s-save-final">Guardar sessão</button>
+    <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Voltar à sessão</button></div>`);
 }
 function summaryLine(sess,logs){
   const parts=[];
@@ -1393,7 +1407,7 @@ function viewSession(id){
     ${r.summaryLine?`<div class="summary-big mt12">${esc(r.summaryLine)}</div>`:''}
     <div class="mt12">${exs||'<div class="small muted">Registo rápido, sem detalhe por exercício.</div>'}</div>
     ${r.notes?`<div class="tip mt12"><b>Notas:</b> ${esc(r.notes)}</div>`:''}
-    <div class="btn-row mt16"><button class="btn sm ghost" data-act="close-sheet">Fechar</button><button class="btn sm danger" data-act="delete-session" data-id="${r.id}">Apagar registo</button></div>`);
+    <div class="sheet-foot"><div class="btn-row"><button class="btn sm ghost" data-act="close-sheet">Fechar</button><button class="btn sm danger" data-act="delete-session" data-id="${r.id}">Apagar registo</button></div></div>`);
 }
 function logPastSheet(d){
   const keys=['S1','S2','S3','S5a','S5b','S5c','WALK','RAIN','MOB'];
@@ -1405,7 +1419,7 @@ function logPastSheet(d){
     <div class="field" id="past-walk" ${(S.ui.pastKey||'S1')==='WALK'?'':'style="display:none"'}><label>Passos dados</label><input class="input num" type="number" inputmode="numeric" placeholder="ex: 7400" id="past-steps" value="${(S.ext.daily&&S.ext.daily[d]&&S.ext.daily[d].steps)||''}">${S.ext.daily&&S.ext.daily[d]&&S.ext.daily[d].steps?`<div class="xs muted mt4">Pré-preenchido com os ${fmtN(S.ext.daily[d].steps)} passos importados deste dia.</div>`:''}</div>
     <div class="field" id="past-jogo" ${(S.ui.pastKey||'S1')==='S5a'?'':'style="display:none"'}><label>Jogo: adversário · sets · resultado · parciais · 1.º serv % · DF</label><input class="input" id="past-opp" placeholder="adversário"><div class="row mt8"><input class="input num" type="number" inputmode="numeric" placeholder="sets" id="past-sets" style="width:25%"><div class="seg g grow"><button class="on" data-act="past-res" data-v="W">Ganhei</button><button data-act="past-res" data-v="L">Perdi</button></div></div><div class="row mt8"><input class="input" placeholder="6-4 3-6 7-5" id="past-score" style="width:40%"><input class="input num" type="number" inputmode="numeric" placeholder="1.º %" id="past-fp" style="width:30%"><input class="input num" type="number" inputmode="numeric" placeholder="DF" id="past-df" style="width:30%"></div></div>
     <div class="field"><label>Notas</label><textarea class="input" id="past-notes"></textarea></div>
-    <button class="btn primary mt16" data-act="past-save" data-d="${d}">Guardar</button>`);
+    <div class="sheet-foot"><button class="btn primary" style="width:100%" data-act="past-save" data-d="${d}">Guardar</button></div>`);
 }
 function savePast(d){
   const key=S.ui.pastKey||'S1';const def=SESSIONS[key];const dur=num($('#past-dur').textContent,def.dur);const rpe=S.ui.pastRpe||6;
@@ -1456,8 +1470,8 @@ function swapPreview(reason,detail){
       ${s.flags.length?`<div class="row wrap mt8" style="gap:6px">${s.flags.map(f=>`<span class="badge ${f.k==='serveblock'?'r':'b'}">${esc(f.t)}</span>`).join('')}</div>`:''}
       <div class="mt8">${s.blocks.map(b=>`<div class="small" style="padding:4px 0;border-bottom:1px solid var(--line)"><b class="${b.blocked?'r':''}">${esc(b.name)}${b.blocked?' · bloqueado':''}</b> <span class="muted num">${b.min} min</span>${b.ex.length?`<div class="muted xs">${b.ex.map(e=>esc(e.name)).join(' · ')}</div>`:''}</div>`).join('')}</div></div>
     ${r.planned?`<div class="small muted mt8">Substitui: ${esc(SESSION_LABEL[r.planned]||r.planned)}.</div>`:''}
-    <div class="btn-row mt12"><button class="btn primary" data-act="swap-confirm" data-k="${reason}" data-detail="${esc(detail||'')}" data-key="${tg.key}">Confirmar e iniciar</button></div>
-    <div class="btn-row mt8"><button class="btn sm ghost" data-act="swap-confirm-only" data-k="${reason}" data-detail="${esc(detail||'')}" data-key="${tg.key}">Só trocar, iniciar depois</button><button class="btn sm ghost" data-act="swap-open">Voltar</button></div>`);
+    <div class="sheet-foot"><div class="btn-row"><button class="btn primary" data-act="swap-confirm" data-k="${reason}" data-detail="${esc(detail||'')}" data-key="${tg.key}">Confirmar e iniciar</button></div>
+    <div class="btn-row"><button class="btn sm ghost" data-act="swap-confirm-only" data-k="${reason}" data-detail="${esc(detail||'')}" data-key="${tg.key}">Só trocar, iniciar depois</button><button class="btn sm ghost" data-act="swap-open">Voltar</button></div></div>`);
 }
 function confirmSwap(reason,detail,start){
   const d=today();const tg=swapTarget(reason,d,detail);if(!tg)return;const r=resolveDay(d);
