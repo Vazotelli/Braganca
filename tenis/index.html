@@ -970,46 +970,57 @@ const SHOT_MAX_W=560,SHOT_Q=0.5,SHOT_KEEP_DAYS=21,SHOT_PER_DAY=4;
 // OCR_MAX_SIDE, seja qual for o tamanho original.
 const OCR_MAX_SIDE=1600;
 function fitBox(w,h,maxSide){const m=Math.max(w,h);if(m<=maxSide)return {w,h};const s=maxSide/m;return {w:Math.max(1,Math.round(w*s)),h:Math.max(1,Math.round(h*s))}}
-function addShot(d,file){
+function fileToImg(file){ // reserva para quando createImageBitmap não existe ou falha (ex.: formato exótico)
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{const img=new Image();img.onload=()=>res(img);img.onerror=()=>rej(new Error('Não consegui ler a imagem. Tenta outro formato (PNG ou JPEG).'));img.src=fr.result};
+    fr.onerror=()=>rej(new Error('Não consegui ler o ficheiro'));
+    fr.readAsDataURL(file);
+  });
+}
+async function addShot(d,file){
   if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
   toast('A processar a imagem…',6000);
   const fail=(msg)=>{toast(msg,5000);console.warn('addShot:',msg)};
-  const watchdog=setTimeout(()=>fail('Demorou demasiado a processar. Tenta uma imagem mais pequena (print de ecrã em vez de foto).'),15000);
-  const fr=new FileReader();
-  fr.onload=()=>{const img=new Image();
-    img.onload=()=>{
-      clearTimeout(watchdog);
-      try{
-        // OCR só num canvas limitado: a nitidez para ler dígitos não precisa da resolução nativa.
-        let read={};
-        try{
-          const o=fitBox(img.width,img.height,OCR_MAX_SIDE);
-          const f=document.createElement('canvas');f.width=o.w;f.height=o.h;
-          f.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,o.w,o.h);
-          read=readShot(ocrImage(f),o.w,o.h);
-        }catch(err){console.warn('OCR falhou',err)}
-        // Guardar: reduzido a SHOT_MAX_W. drawImage de uma imagem grande para um canvas pequeno é
-        // barato (o browser faz o downscale); o que era caro era o passo de cima, já resolvido.
-        const sc=Math.min(1,SHOT_MAX_W/img.width);
-        const w=Math.max(1,Math.round(img.width*sc)),hh=Math.max(1,Math.round(img.height*sc));
-        const c=document.createElement('canvas');c.width=w;c.height=hh;
-        c.getContext('2d').drawImage(img,0,0,w,hh);
-        let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){fail('Não consegui reduzir a imagem: '+(e&&e.message||e));return}
-        S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
-        if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
-        arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
-        pruneShots();
-        if(!saveNow()){arr.pop();render();return}
-        const n=applyRead(d,read);
-        render();
-        toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
-      }catch(err){fail('Falhou a processar a imagem: '+(err&&err.message||err))}
-    };
-    img.onerror=()=>{clearTimeout(watchdog);fail('Não consegui ler a imagem. Tenta outro formato (PNG ou JPEG).')};
-    img.src=fr.result;
-  };
-  fr.onerror=()=>{clearTimeout(watchdog);fail('Não consegui ler o ficheiro')};
-  fr.readAsDataURL(file);
+  let done=false;
+  const watchdog=setTimeout(()=>{if(!done)fail('Demorou demasiado a processar. Tenta uma imagem mais pequena (print de ecrã em vez de foto).')},15000);
+  try{
+    // createImageBitmap decodifica direto do ficheiro, sem passar por uma string base64 (uma foto de
+    // câmara em base64 chega a ocupar o dobro em memória) e lida melhor com formatos como HEIC do
+    // que um <img>. Em navegadores sem suporte, cai para a reserva por FileReader+Image.
+    let bmp=null;
+    try{bmp=await createImageBitmap(file)}catch(err){console.warn('createImageBitmap falhou, a usar reserva',err)}
+    const src=bmp||await fileToImg(file);
+    const iw=bmp?bmp.width:src.width, ih=bmp?bmp.height:src.height;
+    done=true;clearTimeout(watchdog);
+    // OCR só num canvas limitado: a nitidez para ler dígitos não precisa da resolução nativa.
+    let read={};
+    try{
+      const o=fitBox(iw,ih,OCR_MAX_SIDE);
+      const f=document.createElement('canvas');f.width=o.w;f.height=o.h;
+      f.getContext('2d',{willReadFrequently:true}).drawImage(src,0,0,o.w,o.h);
+      read=readShot(ocrImage(f),o.w,o.h);
+    }catch(err){console.warn('OCR falhou',err)}
+    // Guardar: reduzido a SHOT_MAX_W. drawImage de uma imagem grande para um canvas pequeno é
+    // barato (o browser faz o downscale); o que era caro era o passo de cima, já resolvido.
+    const sc=Math.min(1,SHOT_MAX_W/iw);
+    const w=Math.max(1,Math.round(iw*sc)),hh=Math.max(1,Math.round(ih*sc));
+    const c=document.createElement('canvas');c.width=w;c.height=hh;
+    c.getContext('2d').drawImage(src,0,0,w,hh);
+    if(bmp)bmp.close();
+    let data;try{data=c.toDataURL('image/jpeg',SHOT_Q)}catch(e){fail('Não consegui reduzir a imagem: '+(e&&e.message||e));return}
+    S.shots=S.shots||{};const arr=S.shots[d]=S.shots[d]||[];
+    if(arr.length>=SHOT_PER_DAY){toast('Máximo de '+SHOT_PER_DAY+' prints por dia');return}
+    arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
+    pruneShots();
+    if(!saveNow()){arr.pop();render();return}
+    const n=applyRead(d,read);
+    render();
+    toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print':'Print guardado, mas não reconheci números',3200);
+  }catch(err){
+    done=true;clearTimeout(watchdog);
+    fail((err&&err.message)||'Falhou a processar a imagem');
+  }
 }
 function pruneShots(){ // os números ficam para sempre; as imagens só os últimos 21 dias
   if(!S.shots)return;const lim=addDays(today(),-SHOT_KEEP_DAYS);
