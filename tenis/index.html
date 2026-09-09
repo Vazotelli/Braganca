@@ -321,9 +321,9 @@ const mean=a=>a.length?sum(a)/a.length:0;
 const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
 const num=(v,d=0)=>{const n=parseFloat(v);return isFinite(n)?n:d};
 
-// Hook de teste: #d=AAAA-MM-DD força a data de "hoje"; #reset limpa os dados.
+// Hooks de desenvolvimento (só via URL): #d=AAAA-MM-DD força a data de "hoje"; #dev-reset apaga os dados.
 let TODAY_OVERRIDE=null;
-(function(){const m=location.hash.match(/d=(\d{4}-\d{2}-\d{2})/);if(m)TODAY_OVERRIDE=m[1];if(/reset/.test(location.hash)){try{localStorage.removeItem('tennisOS.v1')}catch(e){}}})();
+(function(){const m=location.hash.match(/d=(\d{4}-\d{2}-\d{2})/);if(m)TODAY_OVERRIDE=m[1];if(/dev-reset/.test(location.hash)){try{localStorage.removeItem('tennisOS.v1')}catch(e){}}})();
 const today=()=>TODAY_OVERRIDE||isoOf(new Date());
 
 let toastT;
@@ -448,6 +448,7 @@ const EX={
   mob_ombro:{name:'Mobilidade de ombro e anca (20 min)',type:'checkbox',svg:'mobilidade',desc:'Círculos, rotações externas com toalha, ponte de anca, gato-camelo. Sem carga.',err:'Transformar isto em treino. Hoje é para recuperar.'},
   corda_leve:{name:'Corda de saltar (leve)',type:'tempo',svg:'corda',seg:['joelho'],rope:true,desc:'Ritmo baixo, saltos rasos.',err:'Aterrar de calcanhar.'}
 };
+const EX_SHORT={sombra_reves:'Sombra revés',remada:'Remada',chinup_neg:'Chin-up neg.',flexoes:'Flexões',ytw:'YTW',prancha_lat:'Prancha lat.',afundo_bulgaro:'Afundo búlgaro',ponte_gluteo:'Ponte glúteo',nordico:'Nórdico',gemeos:'Gémeos',deadbug:'Dead bug',agach_salto:'Agach. salto',skater:'Skater'};
 // Sessões. physical=true escala com descarga/60%. intensity: 'high' conta para a regra de dias seguidos.
 const SESSIONS={
   S1:{name:'Campo em casa: Serviço + Pés',short:'Serviço + Pés',dur:70,focus:'Serviço (lançamento, pronação, aberto)',place:'Campo em casa',intensity:'med',physical:true,court:true,
@@ -1221,7 +1222,7 @@ function renderProgresso(){
   h+=`<div class="sec">Progressão de força <span class="muted xs" style="text-transform:none;letter-spacing:0;font-weight:600">reps totais por sessão</span></div><div class="card">`;
   if(!withData.length)h+=`<div class="empty">Sem registos de força ainda. Quarta (barras) e fim de semana (pernas).</div>`;
   else{const sel=withData.includes(S.ui.progEx)?S.ui.progEx:withData[0];const pts=recs.filter(r=>r.stats&&r.stats.strength&&r.stats.strength[sel]).map(r=>({d:r.date,y:r.stats.strength[sel]}));
-    h+=`<div class="chips">${withData.map(id=>`<button class="chip ${id===sel?'on':''}" data-act="prog-ex" data-v="${id}">${esc(EX[id].name.split(' ').slice(0,2).join(' '))}</button>`).join('')}</div>
+    h+=`<div class="chips">${withData.map(id=>`<button class="chip ${id===sel?'on':''}" data-act="prog-ex" data-v="${id}">${esc(EX_SHORT[id]||EX[id].name)}</button>`).join('')}</div>
       <div class="row mt12" style="gap:18px"><div><div class="kpi num">${pts[pts.length-1].y}</div><div class="label">reps · última</div></div><div><div class="kpi md num">${Math.max(...pts.map(p=>p.y))}</div><div class="label">máximo</div></div><div><div class="kpi md num">${pts.length}</div><div class="label">sessões</div></div></div>
       ${lineChart({bars:pts.map(p=>({y:p.y,color:'var(--green)'})),yMin:0,xLabels:[{i:0,t:fmtShort(pts[0].d)},{i:pts.length-1,t:fmtShort(pts[pts.length-1].d)}]})}
       <div class="small muted mt8">${esc(EX[sel].name)} · ${esc(strengthNote(clamp(weekOf(today()),1,99),weekInfo(today()).basePh).t)}</div>`}
@@ -1578,6 +1579,9 @@ function svgFor(key,size){
 }
 
 // ============================== INIT ==============================
+// Opcional: se o ficheiro for servido por http(s) e existir sw.js ao lado, o service worker guarda a
+// app em cache para abrir offline a partir do ecrã inicial. Em file:// não faz nada.
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 applyTheme();
 render();
 saveNow();
