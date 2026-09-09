@@ -339,7 +339,7 @@ function defaultState(){return{
   swaps:[],         // histórico de trocas {date,from,to,reason,detail}
   overrides:{},     // 'AAAA-MM-DD' -> {key,opts,reason,detail} sessão trocada para o dia
   lastLogs:{},      // exId -> último registo (pré-preenchimento)
-  ext:{workouts:[],imports:[]},  // dados importados (Apple Health / CSV)
+  ext:{workouts:[],imports:[],daily:{}},  // dados importados (Apple Health / CSV): treinos, histórico de importações, FC/sono por dia
   active:null,      // sessão em curso (rascunho)
   ui:{tab:'hoje',planWeek:null,progEx:null}
 }}
@@ -351,7 +351,7 @@ function loadState(){
 function migrate(s){const d=defaultState();
   for(const k of Object.keys(d))if(s[k]===undefined)s[k]=d[k];
   s.settings=Object.assign({},d.settings,s.settings||{});
-  s.ext=Object.assign({workouts:[],imports:[]},s.ext||{});
+  s.ext=Object.assign({workouts:[],imports:[],daily:{}},s.ext||{});
   s.ui=Object.assign({},d.ui,s.ui||{});
   return s}
 let saveT;
@@ -548,28 +548,35 @@ function sessionForDay(d){
 
 // ============================== SAÚDE / PRONTIDÃO ==============================
 const PAIN_SEGS=[['ombro','Ombro'],['cotovelo','Cotovelo'],['joelho','Joelho'],['costas','Costas']];
+// Check-in manual (principal) completado com dados importados (FC repouso, sono) quando faltam
+function healthFor(d){
+  const m=S.health[d],x=S.ext.daily&&S.ext.daily[d];if(!m&&!x)return null;
+  const h=Object.assign({},m||{});
+  if(x){if(h.rhr==null&&x.rhr)h.rhr=x.rhr,h.rhrSrc=x.src;if(h.sleepH==null&&x.sleepH!=null)h.sleepH=x.sleepH,h.sleepSrc=x.src;if(!m)h.imported=true}
+  return h;
+}
 function rhrBaseline(d){ // mediana dos últimos 28 dias (exclui o próprio dia); mínimo 3 valores
-  const vals=[];for(let i=1;i<=28;i++){const h=S.health[addDays(d,-i)];if(h&&h.rhr)vals.push(h.rhr)}
+  const vals=[];for(let i=1;i<=28;i++){const h=healthFor(addDays(d,-i));if(h&&h.rhr)vals.push(h.rhr)}
   return vals.length>=3?median(vals):null;
 }
 const BANDS=[{min:80,c:'g',name:'Verde',rec:'Sessão completa. Podes forçar.'},{min:60,c:'y',name:'Amarelo',rec:'Sessão completa, mas sem subir carga.'},{min:40,c:'o',name:'Laranja',rec:'Versão a 60% do volume.'},{min:0,c:'r',name:'Vermelho',rec:'Descanso ou só mobilidade.'}];
 const bandOf=score=>BANDS.find(b=>score>=b.min);
 function readiness(d){
-  const h=S.health[d];if(!h)return null;
+  const h=healthFor(d);if(!h)return null;
   const parts=[];
   const add=(k,label,score,max,detail)=>parts.push({k,label,score:Math.round(score),max,detail});
   if(h.sleepH!=null)add('sleepH','Horas de sono',clamp(h.sleepH/8,0,1)*25,25,h.sleepH+' h (alvo 8 h)');
   if(h.sleepQ)add('sleepQ','Qualidade do sono',(h.sleepQ-1)/4*15,15,h.sleepQ+'/5');
-  if(h.rhr){const b=rhrBaseline(d);
-    if(b==null)add('rhr','FC repouso',15,20,h.rhr+' bpm · sem baseline ainda (neutro)');
-    else{const dl=h.rhr-b;add('rhr','FC repouso',dl<=0?20:dl<=3?15:dl<=6?8:0,20,h.rhr+' bpm vs mediana '+Math.round(b)+' ('+(dl>0?'+':'')+Math.round(dl)+')')}}
+  if(h.rhr){const b=rhrBaseline(d);const src=h.rhrSrc?' · '+h.rhrSrc:'';
+    if(b==null)add('rhr','FC repouso',15,20,h.rhr+' bpm · sem baseline ainda (neutro)'+src);
+    else{const dl=h.rhr-b;add('rhr','FC repouso',dl<=0?20:dl<=3?15:dl<=6?8:0,20,h.rhr+' bpm vs mediana '+Math.round(b)+' ('+(dl>0?'+':'')+Math.round(dl)+')'+src)}}
   if(h.soreness!=null)add('soreness','Dores musculares',[15,10,5,0][h.soreness],15,h.soreness+'/3');
-  const mp=Math.max(0,...PAIN_SEGS.map(([k])=>h.pain&&h.pain[k]||0));
-  add('pain','Dor articular (máx.)',[15,10,4,0][mp],15,mp+'/3'+(mp?' · '+PAIN_SEGS.filter(([k])=>(h.pain&&h.pain[k]||0)===mp).map(([,l])=>l).join(', '):''));
+  if(!h.imported){const mp=Math.max(0,...PAIN_SEGS.map(([k])=>h.pain&&h.pain[k]||0));
+  add('pain','Dor articular (máx.)',[15,10,4,0][mp],15,mp+'/3'+(mp?' · '+PAIN_SEGS.filter(([k])=>(h.pain&&h.pain[k]||0)===mp).map(([,l])=>l).join(', '):''))}
   if(h.motivation)add('motivation','Motivação',(h.motivation-1)/4*10,10,h.motivation+'/5');
   const max=sum(parts.map(p=>p.max));const sc=sum(parts.map(p=>p.score));
   const score=max?Math.round(sc/max*100):0;
-  return {score,parts,band:bandOf(score),partial:max<100};
+  return {score,parts,band:bandOf(score),partial:max<100,imported:!!h.imported};
 }
 // Regra rígida: dor ombro/cotovelo ≥2 em dois dias (≥48 h) → bloqueia serviço até baixar
 function painBlock(d){
@@ -607,7 +614,7 @@ function computeAlerts(d){
   const pb=painBlock(d);
   if(pb.active)A.push({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+' ('+pb.days+' dias). Todos os blocos de serviço ficam fechados até a dor baixar para 0-1 no check-in.'});
   const h=S.health[d];
-  if(!h)A.push({c:'b',t:'Sem check-in hoje',x:'30 segundos no separador Saúde para calcular a prontidão.',act:'tab:saude'});
+  if(!h)A.push({c:'b',t:'Sem check-in hoje',x:(S.ext.daily&&S.ext.daily[d]?'Há FC/sono importados, mas falta a dor e a motivação. ':'')+'30 segundos no separador Saúde para calcular a prontidão.',act:'tab:saude'});
   else{const r=readiness(d);if(r&&r.score<40)A.push({c:'r',t:'Prontidão '+r.score+': descanso',x:'Hoje só mobilidade. Forçar com este score é onde a lesão aparece.'});else if(r&&r.score<60)A.push({c:'o',t:'Prontidão '+r.score+': versão a 60%',x:'Usa "Trocar sessão → Cansado" para cortar o volume.'})}
   const yh=yesterdayHigh(d);
   if(yh&&sess&&sess.intensity==='high')A.push({c:'y',t:'Dois dias seguidos de alta intensidade',x:'Ontem: '+(SESSION_LABEL[yh.key]||yh.key)+(yh.rpe?' (RPE '+yh.rpe+')':'')+'. Hoje é '+sess.short+'. Baixa para 60% ou troca a sessão.'});
@@ -752,7 +759,7 @@ function swapPatterns(){
 // ============================== ECRÃ: SAÚDE ==============================
 function renderSaude(){
   const d=S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();
-  const h0=S.health[d]||{};const last=lastHealthBefore(d);
+  const h0=healthFor(d)||{};const last=lastHealthBefore(d);
   const v=(k,def)=>h0[k]!=null?h0[k]:(last&&last[k]!=null?last[k]:def);
   const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,costas:0},h0.pain||{});
   const r=readiness(d);
@@ -771,7 +778,7 @@ function renderSaude(){
     <div class="small muted mt12">Bandas: 80-100 verde (podes forçar) · 60-79 amarelo (sem subir carga) · 40-59 laranja (60% do volume) · &lt;40 vermelho (descanso). Regras rígidas sobrepõem-se: dor ombro/cotovelo ≥2 durante 2 dias bloqueia o serviço; nunca dois dias seguidos de alta intensidade.</div></div>`}
   const pb=painBlock(today());if(pb.active)h+=alertHtml({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+'. Regista a dor a 0-1 para desbloquear.'});
   // histórico
-  const days=[];for(let i=27;i>=0;i--){const dd=addDays(today(),-i);days.push({d:dd,h:S.health[dd]})}
+  const days=[];for(let i=27;i>=0;i--){const dd=addDays(today(),-i);days.push({d:dd,h:healthFor(dd)})}
   const has=days.filter(x=>x.h);
   h+=`<div class="sec">Histórico 28 dias</div><div class="card">`;
   if(!has.length)h+=`<div class="empty">Sem check-ins. O primeiro é hoje.</div>`;
@@ -788,7 +795,7 @@ function renderSaude(){
   // import section (etapa 4)
   h+=`<div class="sec">Importar dados</div><div class="card"><div class="small muted">Um HTML estático não lê a app Saúde em direto. O check-in manual é a fonte principal. Podes complementar com o <b>export.xml</b> (ou o zip) da app Saúde, ou um CSV do Garmin/Strava.</div>
     <div class="btn-row mt12"><label class="btn sm" style="flex:1">Apple Health<input type="file" accept=".xml,.zip,application/xml,text/xml,application/zip" class="hide" data-act-input="import-health"></label><label class="btn sm" style="flex:1">CSV Garmin/Strava<input type="file" accept=".csv,text/csv" class="hide" data-act-input="import-csv"></label></div>
-    <div id="import-status" class="small muted mt8"></div>
+    <div id="import-status" class="small muted mt8">${S.ui.importMsg||''}</div>
     ${S.ext.imports.length?`<div class="mt8">${S.ext.imports.slice(-3).reverse().map(i=>`<div class="small muted">• ${esc(i.when.slice(0,10))} · ${esc(i.source)} · ${esc(i.summary)}</div>`).join('')}</div>`:''}
     ${S.ext.workouts.length?`<div class="mt12"><div class="label">Treinos importados (últimos 8)</div>${S.ext.workouts.slice(-8).reverse().map(w=>`<div class="row between small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(w.date)} · ${esc(w.type)}</span><span class="muted num">${w.min} min${w.hr?' · '+w.hr+' bpm':''}</span></div>`).join('')}</div>`:''}
   </div>`;
@@ -1364,8 +1371,142 @@ document.addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.set){S.settings[el.dataset.set]=el.value;if(el.dataset.set==='startDate'&&el.value){S.settings.startDate=mondayOf(el.value)}save();render();return}
   if(el.dataset.actInput==='import-json'){const f=el.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>importJSONText(rd.result);rd.readAsText(f);el.value=''}
-  if(el.dataset.actInput==='hrhr'){/* guardado no hsave */}
+  if(el.dataset.actInput==='import-health'){const f=el.files[0];el.value='';if(f)importHealthFile(f)}
+  if(el.dataset.actInput==='import-csv'){const f=el.files[0];el.value='';if(f)importCSVFile(f)}
 });
+
+// ============================== IMPORTAÇÃO: APPLE HEALTH / CSV ==============================
+// Um HTML estático não lê a app Saúde em direto. Aceita o export.xml (ou o export.zip) e extrai,
+// no browser, FC em repouso, sono e treinos. Leitura por blocos (4 MB) para não bloquear o iPhone.
+function importStatus(msg){const el=$('#import-status');if(el)el.innerHTML=msg;}
+const CHUNK=4*1024*1024;
+function toLocalDate(s){ // "2026-09-01 07:12:00 +0100" | ISO | "Sep 1, 2026, 7:12:00 AM"
+  if(!s)return null;const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  const dm=String(s).match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);if(dm){const a=+dm[1],b=+dm[2];const mmdd=b>12&&a<=12;return dm[3]+'-'+pad(mmdd?a:b)+'-'+pad(mmdd?b:a)} // PT: dia/mês/ano por defeito
+  const t=Date.parse(s);return isNaN(t)?null:isoOf(new Date(t));
+}
+function parseAttrs(str){const o={};str.replace(/([\w:]+)="([^"]*)"/g,(_,k,v)=>{o[k]=v});return o}
+// Acumulador de registos do Apple Health
+function healthAcc(){
+  return {rhr:{},sleep:{},workouts:[],n:0,
+    feed(text){
+      const re=/<(Record|Workout)\s([^>]*?)\/?>/g;let m;
+      while((m=re.exec(text))){this.n++;const a=parseAttrs(m[2]);
+        if(m[1]==='Record'){
+          if(a.type==='HKQuantityTypeIdentifierRestingHeartRate'){const d=toLocalDate(a.startDate);const v=parseFloat(a.value);if(d&&v>25&&v<150)(this.rhr[d]=this.rhr[d]||[]).push(v)}
+          else if(a.type==='HKCategoryTypeIdentifierSleepAnalysis'){if(/InBed|Awake/.test(a.value||''))continue;const t0=Date.parse(a.startDate.replace(' ','T').replace(/ ([+-]\d{4})$/,'$1')),t1=Date.parse(a.endDate.replace(' ','T').replace(/ ([+-]\d{4})$/,'$1'));if(isNaN(t0)||isNaN(t1))continue;const day=isoOf(new Date(t1));/* noite atribuída ao dia em que acorda */const key=(a.sourceName||'?');const s=this.sleep[day]=this.sleep[day]||{};s[key]=(s[key]||0)+(t1-t0)/3600000}
+        }else{const d=toLocalDate(a.startDate);if(!d)continue;const type=(a.workoutActivityType||'').replace('HKWorkoutActivityType','');let min=parseFloat(a.duration);if(a.durationUnit==='sec')min/=60;if(a.durationUnit==='hr')min*=60;if(!isFinite(min)||min<3)continue;this.workouts.push({date:d,type,min:Math.round(min),src:'Apple Health'})}
+      }
+    },
+    result(){
+      const daily={};
+      for(const [d,vs] of Object.entries(this.rhr))daily[d]=Object.assign(daily[d]||{},{rhr:Math.round(median(vs))});
+      for(const [d,bySrc] of Object.entries(this.sleep)){const h=Math.max(...Object.values(bySrc));if(h>=1&&h<=16)daily[d]=Object.assign(daily[d]||{},{sleepH:Math.round(h*10)/10})}
+      return {daily,workouts:this.workouts};
+    }};
+}
+// Lê um Blob por blocos, evitando cortar tags a meio
+async function scanBlobChunks(blob,acc,onProgress){
+  const dec=new TextDecoder();let carry='';
+  for(let off=0;off<blob.size;off+=CHUNK){
+    const buf=await blob.slice(off,Math.min(blob.size,off+CHUNK)).arrayBuffer();
+    let text=carry+dec.decode(buf,{stream:true});const cut=text.lastIndexOf('<');
+    if(cut>text.length-4000&&off+CHUNK<blob.size){carry=text.slice(cut);text=text.slice(0,cut)}else carry='';
+    acc.feed(text);onProgress(Math.min(1,(off+CHUNK)/blob.size));await new Promise(r=>setTimeout(r,0));
+  }
+  if(carry)acc.feed(carry);
+}
+async function scanStreamChunks(stream,acc,onProgress,total){
+  const reader=stream.getReader();const dec=new TextDecoder();let carry='',read=0;
+  for(;;){const {done,value}=await reader.read();if(done)break;read+=value.byteLength;
+    let text=carry+dec.decode(value,{stream:true});const cut=text.lastIndexOf('<');
+    if(cut>text.length-4000){carry=text.slice(cut);text=text.slice(0,cut)}else carry='';
+    acc.feed(text);onProgress(total?Math.min(1,read/total):null);}
+  if(carry)acc.feed(carry);
+}
+// ZIP: localiza export.xml pelo diretório central e descomprime com DecompressionStream (nativo)
+async function zipEntryStream(file){
+  const tailSize=Math.min(file.size,66000);const tail=new DataView(await file.slice(file.size-tailSize).arrayBuffer());
+  let eocd=-1;for(let i=tail.byteLength-22;i>=0;i--){if(tail.getUint32(i,true)===0x06054b50){eocd=i;break}}
+  if(eocd<0)throw new Error('ZIP inválido (sem diretório central)');
+  const cdSize=tail.getUint32(eocd+12,true),cdOff=tail.getUint32(eocd+16,true);
+  if(cdOff===0xFFFFFFFF)throw new Error('ZIP64 não suportado: extrai o zip e importa o export.xml');
+  const cd=new DataView(await file.slice(cdOff,cdOff+cdSize).arrayBuffer());
+  let p=0,found=null;
+  while(p+46<=cd.byteLength&&cd.getUint32(p,true)===0x02014b50){
+    const method=cd.getUint16(p+10,true),csize=cd.getUint32(p+20,true),usize=cd.getUint32(p+24,true),nlen=cd.getUint16(p+28,true),elen=cd.getUint16(p+30,true),clen=cd.getUint16(p+32,true),loff=cd.getUint32(p+42,true);
+    const name=new TextDecoder().decode(new Uint8Array(cd.buffer,cd.byteOffset+p+46,nlen));
+    if(/(^|\/)export\.xml$/i.test(name)){found={method,csize,usize,loff,name};break}
+    p+=46+nlen+elen+clen;
+  }
+  if(!found)throw new Error('Não encontrei export.xml dentro do zip');
+  if(found.csize===0xFFFFFFFF)throw new Error('ZIP64 não suportado: extrai o zip e importa o export.xml');
+  const lh=new DataView(await file.slice(found.loff,found.loff+30).arrayBuffer());
+  if(lh.getUint32(0,true)!==0x04034b50)throw new Error('Cabeçalho ZIP inválido');
+  const dataStart=found.loff+30+lh.getUint16(26,true)+lh.getUint16(28,true);
+  const data=file.slice(dataStart,dataStart+found.csize);
+  if(found.method===0)return {blob:data,size:found.usize};
+  if(found.method!==8)throw new Error('Método de compressão não suportado');
+  if(typeof DecompressionStream==='undefined')throw new Error('Este browser não descomprime zip: extrai o zip e importa o export.xml');
+  return {stream:data.stream().pipeThrough(new DecompressionStream('deflate-raw')),size:found.usize};
+}
+async function importHealthFile(file){
+  const acc=healthAcc();const t0=Date.now();
+  const prog=p=>importStatus(`A ler ${esc(file.name)}… ${p==null?'':Math.round(p*100)+'%'} · ${acc.n.toLocaleString('pt-PT')} registos lidos`);
+  try{
+    importStatus('A abrir '+esc(file.name)+'…');
+    if(/\.zip$/i.test(file.name)){const e=await zipEntryStream(file);if(e.blob)await scanBlobChunks(e.blob,acc,prog);else await scanStreamChunks(e.stream,acc,prog,e.size)}
+    else await scanBlobChunks(file,acc,prog);
+    const r=acc.result();applyImport(r,'Apple Health');
+    const nd=Object.keys(r.daily).length;
+    S.ui.importMsg=`<span class="g">Importado</span> em ${((Date.now()-t0)/1000).toFixed(1)} s: ${nd} dias com FC/sono, ${r.workouts.length} treinos, ${acc.n.toLocaleString('pt-PT')} registos lidos.`;
+    S.ext.imports.push({when:new Date().toISOString(),source:'Apple Health',summary:nd+' dias, '+r.workouts.length+' treinos'});save();render();
+  }catch(e){console.warn(e);importStatus('<span class="r">Falhou:</span> '+esc(e.message))}
+}
+function applyImport(r,src){
+  S.ext.daily=S.ext.daily||{};
+  for(const [d,v] of Object.entries(r.daily))S.ext.daily[d]=Object.assign(S.ext.daily[d]||{},v,{src});
+  const seen=new Set(S.ext.workouts.map(w=>w.date+'|'+w.type+'|'+w.min));
+  for(const w of r.workouts){const k=w.date+'|'+w.type+'|'+w.min;if(!seen.has(k)){seen.add(k);S.ext.workouts.push(w)}}
+  S.ext.workouts.sort((a,b)=>a.date<b.date?-1:1);if(S.ext.workouts.length>400)S.ext.workouts=S.ext.workouts.slice(-400);
+}
+// CSV genérico (Garmin Connect / Strava): deteta colunas pelo nome
+function parseCSV(text){
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c}
+    else if(c==='"')q=true;else if(c===','||c===';'){row.push(cell);cell=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(x=>x!==''))rows.push(row);row=[]}else cell+=c}
+  if(cell!==''||row.length){row.push(cell);if(row.some(x=>x!==''))rows.push(row)}
+  return rows;
+}
+function parseDurationMin(v){if(v==null||v==='')return null;const s=String(v).trim();const hm=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);if(hm)return hm[3]!=null?(+hm[1]*60+ +hm[2]+ +hm[3]/60):(+hm[1]*60+ +hm[2]);const hmin=s.match(/(\d+)\s*h(?:\s*(\d+)\s*m)?/i);if(hmin)return +hmin[1]*60+(+hmin[2]||0);const n=parseFloat(s.replace(',','.'));if(!isFinite(n))return null;return n>1000?n/60:n}
+function parseSleepHours(v){const m=parseDurationMin(v);if(m==null)return null;let h=m;if(m>24)h=m/60;if(h>=0&&h<=16)return Math.round(h*10)/10;return null}
+async function importCSVFile(file){
+  try{
+    importStatus('A ler '+esc(file.name)+'…');
+    const text=await file.text();const rows=parseCSV(text);if(rows.length<2)throw new Error('CSV sem linhas');
+    const head=rows[0].map(h=>h.trim().toLowerCase());
+    const find=(...res)=>{for(const re of res){const i=head.findIndex(h=>re.test(h));if(i>=0)return i}return -1};
+    const iDate=find(/^(activity )?date$/,/date|data|dia|start/);
+    const iRhr=find(/resting.*(hr|heart)|rhr|fc.*repouso|repouso/);
+    const iSleep=find(/sleep.*(dur|time|hours|total)|^sleep$|sono/);
+    const iType=find(/activity type|^type$|tipo|sport/);
+    const iDur=find(/^(elapsed time|moving time|duration|time|tempo|duração)/);const durSecs=iDur>=0&&/elapsed|moving/.test(head[iDur]); // Strava exporta segundos
+    const iHr=find(/avg.*(hr|heart)|average heart|fc m[ée]dia|média/);
+    const iName=find(/activity name|title|nome|name/);
+    if(iDate<0)throw new Error('Não encontrei coluna de data. Cabeçalho: '+head.slice(0,8).join(', '));
+    const daily={},workouts=[];
+    for(const r of rows.slice(1)){const d=toLocalDate(r[iDate]);if(!d)continue;
+      if(iRhr>=0){const v=parseFloat(r[iRhr]);if(v>25&&v<150)daily[d]=Object.assign(daily[d]||{},{rhr:Math.round(v)})}
+      if(iSleep>=0){const h=parseSleepHours(r[iSleep]);if(h!=null)daily[d]=Object.assign(daily[d]||{},{sleepH:h})}
+      if(iType>=0||iName>=0){const type=(iType>=0?r[iType]:'')||(iName>=0?r[iName]:'')||'treino';let min=iDur>=0?parseDurationMin(r[iDur]):null;if(durSecs&&min!=null&&/^\d+(\.\d+)?$/.test(String(r[iDur]).trim()))min=parseFloat(r[iDur])/60;if(min&&min>=3){const w={date:d,type:type.trim(),min:Math.round(min),src:/strava/i.test(file.name)?'Strava':'Garmin/CSV'};if(iHr>=0){const hr=parseFloat(r[iHr]);if(hr>40&&hr<230)w.hr=Math.round(hr)}workouts.push(w)}}
+    }
+    const src=/strava/i.test(file.name)?'Strava':'Garmin/CSV';applyImport({daily,workouts},src);
+    const nd=Object.keys(daily).length;if(!nd&&!workouts.length)throw new Error('Nada reconhecido. Colunas: '+head.slice(0,10).join(', '));
+    S.ui.importMsg=`<span class="g">Importado</span>: ${nd} dias com FC/sono, ${workouts.length} treinos (${rows.length-1} linhas).`;
+    S.ext.imports.push({when:new Date().toISOString(),source:src,summary:nd+' dias, '+workouts.length+' treinos'});save();render();
+  }catch(e){console.warn(e);importStatus('<span class="r">Falhou:</span> '+esc(e.message))}
+}
 
 // ============================== ILUSTRAÇÕES SVG ==============================
 // Estilo: linha simples monocromática (texto) com um acento (azul = segmento-chave/movimento,
