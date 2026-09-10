@@ -428,7 +428,12 @@ function syncBody(){
     settings:S.settings,sessions:S.sessions,health:S.health,swaps:S.swaps,
     overrides:S.overrides,lastLogs:S.lastLogs,ext:S.ext};
 }
+// O que vem do servidor pode vir congelado (os SDKs costumam congelar o que devolvem). Metido
+// direto no estado, a escrita seguinte rebentava — "object is not extensible" — e o dispositivo
+// deixava de conseguir guardar fosse o que fosse. Copia-se tudo antes de entrar.
+function clonar(v){try{return structuredClone(v)}catch(e){return JSON.parse(JSON.stringify(v))}}
 function syncAdopt(b){
+  b=clonar(b);
   if(b.settings)S.settings=Object.assign({},S.settings,b.settings);
   if(Array.isArray(b.sessions))S.sessions=b.sessions;
   if(Array.isArray(b.swaps))S.swaps=b.swaps;
@@ -1427,7 +1432,9 @@ function hrMaxRef(){
 function rpeFromHr(hrAvg,hrMax){return clamp(Math.round((100*hrAvg/hrMax-50)/5),1,10)}
 // ---------- Fim de sessão ----------
 function finishSheet(){
-  const a=S.active;const el=elapsedMin();const dur=a.durationMin||(el>=10?el:a.session.est);a.durationMin=dur;a.rpe=a.rpe||null;
+  const a=S.active;
+  if(!a){toast('Não há sessão em curso',3000);return}
+  const el=elapsedMin();const dur=a.durationMin||(el>=10?el:a.session.est);a.durationMin=dur;a.rpe=a.rpe||null;
   const done=[];let total=0;
   for(const b of a.session.blocks)if(!b.blocked)for(const e of b.ex){total++;
     let d=false;try{d=isDone(e,a.logs[e.id])}catch(err){console.warn('isDone falhou em '+e.id,err)}
