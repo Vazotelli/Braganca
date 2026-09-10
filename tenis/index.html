@@ -1034,11 +1034,25 @@ async function addShot(d,file){
     arr.push({id:uid(),data,w,h:hh,at:new Date().toISOString(),read});
     pruneShots();
     if(!saveNow()){arr.pop();render();return}
-    const n=applyRead(d,read);
+    const res=applyRead(d,read);
+    const n=res.n;
     render();
-    toast(n?'Li '+n+' valor'+(n>1?'es':'')+' do print'
-      :read.kind==='treino'?'Isto é o resumo de um treino. Anexa-o em "Terminar sessão" para classificar o esforço.'
-      :'Print guardado, mas não reconheci números',read.kind==='treino'?4500:3200);
+    if(n&&!res.conflitos.length)toast('Li '+n+' valor'+(n>1?'es':'')+' do print',3200);
+    else if(res.conflitos.length){
+      // Lia bem os números e não dizia nada porque os campos já tinham valores. Agora pergunta.
+      const lista=res.conflitos.map(c=>CONF_LABEL[c.k]+': '+c.de+' → '+c.para).join(' · ');
+      pergunta('O print diz outra coisa',
+        (n?'Preenchi '+n+' campo'+(n>1?'s':'')+' vazio'+(n>1?'s':'')+'. ':'')+'Estes já tinham valores diferentes — '+lista+'. Queres ficar com os do print?',
+        'Usar os do print',()=>forceRead(d,res.conflitos));
+    }
+    else if(read.kind==='treino'&&read.hrAvg)toast('Isto é o resumo de um treino (FC média '+read.hrAvg+'). Anexa-o em "Terminar sessão" para classificar o esforço.',5000);
+    else{
+      // Diz o que se viu, para não ficar só "não reconheci". Assim dá para perceber se o problema
+      // é não ler os dígitos, ou lê-los e não perceber de que ecrã são.
+      const vistos=(read.debug||[]).slice(0,8).join(', ');
+      toast(vistos?'Print guardado. Vi os números '+vistos+' mas não percebi que ecrã é. Diz-me esta mensagem.'
+                  :'Print guardado, mas não consegui ler nenhum número nesta imagem.',7000);
+    }
   }catch(err){
     done=true;clearTimeout(watchdog);
     fail((err&&err.message)||'Falhou a processar a imagem');
@@ -1082,18 +1096,38 @@ const READ_LABEL={sleepHH:'sono (h)',sleepMM:'sono (min)',sleepScore:'pontuaçã
 function applyRead(d,read){
   const form=$('#scr-saude')?healthDraft(d):null; // o que está escrito no ecrã agora
   const cur=Object.assign({},S.health[d]||{},form?{sleepH:form.sleepH,sleepScore:form.sleepScore,rhr:form.rhr,sleepHr:form.sleepHr,pain:form.pain,state:form.state}:{});
-  let n=0;
-  if(cur.sleepH==null&&(read.sleepHH!=null||read.sleepMM!=null)){
-    cur.sleepH=Math.round(((read.sleepHH||0)+(read.sleepMM||0)/60)*100)/100;n++;
+  let n=0;const conflitos=[];
+  // Campo vazio: preenche. Campo já com outro valor: NÃO escreve por cima, mas também não pode
+  // ficar calado — antes devolvia 0 e a app dizia "não reconheci números", o que era mentira.
+  const sonoLido=(read.sleepHH!=null||read.sleepMM!=null)?Math.round(((read.sleepHH||0)+(read.sleepMM||0)/60)*100)/100:null;
+  if(sonoLido!=null){
+    if(cur.sleepH==null){cur.sleepH=sonoLido;n++}
+    else if(Math.abs(cur.sleepH-sonoLido)>0.02)conflitos.push({k:'sleepH',de:cur.sleepH,para:sonoLido});
   }
-  for(const k of ['sleepScore','rhr','sleepHr'])if(read[k]!=null&&cur[k]==null){cur[k]=read[k];n++}
-  if(!n)return 0;
+  for(const k of ['sleepScore','rhr','sleepHr'])if(read[k]!=null){
+    if(cur[k]==null){cur[k]=read[k];n++}
+    else if(cur[k]!==read[k])conflitos.push({k,de:cur[k],para:read[k]});
+  }
+  if(n){
+    cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
+    if(cur.state==null)cur.state=2;
+    cur.at=new Date().toISOString();
+    S.health[d]=cur;saveNow();
+  }
+  return {n,conflitos};
+}
+// Escreve por cima com o que o print diz, quando o utilizador pede.
+function forceRead(d,conflitos){
+  const form=$('#scr-saude')?healthDraft(d):null;
+  const cur=Object.assign({},S.health[d]||{},form?{sleepH:form.sleepH,sleepScore:form.sleepScore,rhr:form.rhr,sleepHr:form.sleepHr,pain:form.pain,state:form.state}:{});
+  for(const c of conflitos)cur[c.k]=c.para;
   cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
   if(cur.state==null)cur.state=2;
   cur.at=new Date().toISOString();
-  S.health[d]=cur;saveNow();
-  return n;
+  S.health[d]=cur;saveNow();render();
+  toast('Atualizado com os valores do print',3000);
 }
+const CONF_LABEL={sleepH:'horas de sono',sleepScore:'pontuação de sono',rhr:'FC repouso',sleepHr:'FC no sono'};
 // Junta o que os prints do dia leram, para mostrar no ecrã
 function shotRead(d){const out={};for(const s of (S.shots&&S.shots[d])||[])for(const k in (s.read||{}))if(out[k]==null)out[k]=s.read[k];return out}
 
@@ -2144,15 +2178,14 @@ function readShot(runs,W,H){
   }
   for(const L of rows)L.items.sort((a,b)=>a.x-b.x);
   out.kind=shotKind(runs,W,H);
-  if(out.kind==='treino'){ // ecrã de um treino: FC média e FC máxima
-    for(const L of rows){
-      if(L.items.length!==2)continue;
-      const [a,b]=L.items;
-      if(a.n!==3||b.n!==3||a.v<90||a.v>220||b.v<90||b.v>220||b.v<a.v)continue;
-      if(!(a.x+a.w<W*0.5&&b.x>W*0.5))continue;
-      out.hrAvg=a.v;out.hrMax=b.v;break;
-    }
-    return out;
+  // Ecrã de um treino: FC média e máxima. Não sai daqui a seguir — se o tipo for adivinhado mal,
+  // sair já fazia perder tudo o resto e o check-in ficava por preencher sem explicação nenhuma.
+  if(out.kind==='treino')for(const L of rows){
+    if(L.items.length!==2)continue;
+    const [a,b]=L.items;
+    if(a.n!==3||b.n!==3||a.v<90||a.v>220||b.v<90||b.v>220||b.v<a.v)continue;
+    if(!(a.x+a.w<W*0.5&&b.x>W*0.5))continue;
+    out.hrAvg=a.v;out.hrMax=b.v;break;
   }
   // FC: primeira linha com exatamente 2 números plausíveis, um em cada metade
   for(const L of rows){
@@ -2171,8 +2204,10 @@ function readShot(runs,W,H){
     if(cs.length)out.sleepScore=cs[0].v;
   }
   // Sono: duração = par (h,min) na mesma linha, separados por texto. Prefere os dígitos maiores.
+  // Só aqui é que o tipo importa mesmo: num ecrã de treino o ritmo (6'33") tem a forma exata de
+  // uma duração e ia parar às horas de sono. É a única regra que se suprime.
   let dur=null;
-  for(const L of rows)for(let i=0;i+1<L.items.length;i++){
+  if(out.kind!=='treino')for(const L of rows)for(let i=0;i+1<L.items.length;i++){
     const a=L.items[i],b=L.items[i+1];
     const gap=b.x-(a.x+a.w);
     if(a.v>14||b.v>59||b.n!==2)continue;
@@ -2180,6 +2215,7 @@ function readShot(runs,W,H){
     if(!dur||a.h>dur.h)dur={h:a.h,hh:a.v,mm:b.v};
   }
   if(dur){out.sleepHH=dur.hh;out.sleepMM=dur.mm}
+  out.debug=runs.map(r=>r.v); // o que os olhos viram, para diagnosticar quando não bate certo
   return out;
 }
 
