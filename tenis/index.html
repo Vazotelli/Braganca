@@ -702,7 +702,9 @@ function readiness(d){
   const add=(k,label,score,max,detail)=>parts.push({k,label,score:Math.round(score),max,detail});
   // Sono curto não é penalização linear: abaixo de 6 h a recuperação cai a pique e nada compensa.
   if(h.sleepH!=null&&h.sleepH>0)add('sleepH','Horas de sono',20*Math.pow(clamp((h.sleepH-3)/5,0,1),1.6),20,fmtH(h.sleepH)+' (alvo 8 h)'+(h.sleepSrc?' · '+h.sleepSrc:''));
-  if(h.sleepScore)add('sleepScore','Pontuação de sono',clamp(h.sleepScore/85,0,1)*20,20,h.sleepScore+'/100 · do relógio');
+  // A pontuação do relógio já é uma nota de 0 a 100: entra proporcional, sem tetos inventados.
+  // Antes dividia por 85, e qualquer coisa acima de 85 dava 20/20 — 87/100 aparecia como perfeito.
+  if(h.sleepScore)add('sleepScore','Pontuação de sono',clamp(h.sleepScore/100,0,1)*20,20,h.sleepScore+'/100 · do relógio');
   if(h.rhr){const r=vsBaseline(h.rhr,baselineOf(d,'rhr'),20);add('rhr','FC repouso',r.score,20,h.rhr+' bpm '+r.txt+(h.rhrSrc?' · '+h.rhrSrc:''))}
   if(h.sleepHr){const r=vsBaseline(h.sleepHr,baselineOf(d,'sleepHr'),15);add('sleepHr','FC média no sono',r.score,15,h.sleepHr+' bpm '+r.txt)}
   if(!h.imported){const mp=Math.max(0,...PAIN_SEGS.map(([k])=>h.pain&&h.pain[k]||0));
@@ -910,14 +912,25 @@ function swapPatterns(){
 // ============================== ECRÃ: SAÚDE ==============================
 function renderSaude(){
   const d=S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();
-  const h0=healthFor(d)||{};const last=lastHealthBefore(d);
-  // Números do relógio nunca herdam do dia anterior: um valor velho guardado sem dar por isso é pior que vazio.
-  const v=(k,def)=>k==='state'?(h0.state!=null?h0.state:(last&&last.state!=null?last.state:def)):(h0[k]!=null?h0[k]:def);
-  const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,costas:0},h0.pain||{});
+  const h0=healthFor(d)||{};
+  // Rascunho do que está a ser preenchido agora. Sem isto, qualquer re-render (anexar um print,
+  // uma sincronização) apagava o que ainda não tinha sido guardado.
+  const dr=(S.ui.hdraft&&S.ui.hdraft.date===d)?S.ui.hdraft:null;
+  // Nada herda do dia anterior — nem os números do relógio nem o "como estás". Um valor velho
+  // apresentado como sendo de hoje é pior que um campo vazio: o "como estás" ficava preso na
+  // resposta de outro dia e o utilizador não conseguia mudá-lo.
+  const v=(k,def)=>{
+    if(dr&&dr[k]!=null)return dr[k];
+    return h0[k]!=null?h0[k]:def;
+  };
+  const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,costas:0},h0.pain||{},(dr&&dr.pain)||{});
   const r=readiness(d);
   const nf=(k,ph,mn,mx,unit,hint)=>`<div class="numrow"><div class="grow"><div class="nl">${ph}</div>${hint?`<div class="nh">${hint}</div>`:''}</div><input class="input num nin" type="number" inputmode="numeric" min="${mn}" max="${mx}" value="${v(k,'')}" placeholder="–" data-hnum="${k}"><span class="nu">${unit}</span></div>`;
   const shots=(S.shots&&S.shots[d])||[];
-  const sh=v('sleepH',null);const hh=sh!=null?Math.floor(sh):'';const hm=sh!=null?Math.round((sh-Math.floor(sh))*60):'';
+  const sh=v('sleepH',null);
+  let hh=sh!=null?Math.floor(sh):'',hm=sh!=null?Math.round((sh-Math.floor(sh))*60):'';
+  if(dr&&dr.sleepHH!=null)hh=dr.sleepHH;
+  if(dr&&dr.sleepMM!=null)hm=dr.sleepMM;
   let h=`<div class="card"><div class="row between"><div><div class="label">Check-in diário · 30 s</div><h3 class="mt4">${esc(fmtDate(d))}${d===today()?'':' <span class="badge y">passado</span>'}</h3></div><div class="row" style="gap:6px"><button class="iconbtn" data-act="hdate" data-n="-1">${ICON.left}</button><button class="iconbtn" data-act="hdate" data-n="1" ${d>=today()?'disabled style="opacity:.3"':''}>${ICON.right}</button></div></div>
 
     <div class="sub mt16">Do relógio</div>
@@ -976,6 +989,15 @@ function renderSaude(){
 }
 const hDate=()=>S.ui.healthDate&&S.ui.healthDate<=today()?S.ui.healthDate:today();
 function lastHealthBefore(d){const ks=Object.keys(S.health).filter(k=>k<d).sort();return ks.length?S.health[ks[ks.length-1]]:null}
+// Guarda o que está a ser preenchido, para não se perder num re-render. Só vai para S.health
+// quando se carrega em "Guardar check-in".
+function hdraft(k,val){
+  const d=hDate();
+  if(!S.ui.hdraft||S.ui.hdraft.date!==d)S.ui.hdraft={date:d};
+  if(k==='pain'){S.ui.hdraft.pain=Object.assign({},S.ui.hdraft.pain,val)}
+  else S.ui.hdraft[k]=val;
+  save();
+}
 function healthDraft(d){ // valores atuais do formulário → objeto
   const el=$('#scr-saude');
   const n=(k,mn,mx)=>{const i=$(`[data-hnum="${k}"]`,el);if(!i||i.value==='')return null;const v=num(i.value);return v>=mn&&v<=mx?v:null};
@@ -1117,7 +1139,7 @@ function applyRead(d,read){
     cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
     if(cur.state==null)cur.state=2;
     cur.at=new Date().toISOString();
-    S.health[d]=cur;saveNow();
+    S.health[d]=cur;S.ui.hdraft=null;saveNow();
   }
   return {n,conflitos};
 }
@@ -1129,7 +1151,7 @@ function forceRead(d,conflitos){
   cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
   if(cur.state==null)cur.state=2;
   cur.at=new Date().toISOString();
-  S.health[d]=cur;saveNow();render();
+  S.health[d]=cur;S.ui.hdraft=null;saveNow();render();
   toast('Atualizado com os valores do print',3000);
 }
 const CONF_LABEL={sleepH:'horas de sono',sleepScore:'pontuação de sono',rhr:'FC repouso',sleepHr:'FC no sono'};
@@ -1780,14 +1802,15 @@ const ACT={
   'plan-sel'(el){S.ui.planSel=el.dataset.d;save();render()},
   'undo-override'(el){const d=el.dataset.d;delete S.overrides[d];S.swaps=S.swaps.filter(s=>!(s.date===d&&!s.done));save();render();toast('Troca anulada')},
   // saúde
-  'hdate'(el){const d=S.ui.healthDate||today();S.ui.healthDate=addDays(d,num(el.dataset.n));if(S.ui.healthDate>today())S.ui.healthDate=today();save();render()},
+  'hdate'(el){const d=S.ui.healthDate||today();S.ui.hdraft=null;S.ui.healthDate=addDays(d,num(el.dataset.n));if(S.ui.healthDate>today())S.ui.healthDate=today();save();render()},
   // Dor: sem dor → leve → forte → sem dor. Zero toques num dia normal.
   'hpain'(el){const c=num(el.dataset.v);const v=c>=2?0:c===1?3:1;
+    hdraft('pain',{[el.dataset.k]:v});
     el.dataset.v=v;const L=(PAIN_SEGS.find(x=>x[0]===el.dataset.k)||[,''])[1];
     el.className='chip pain '+(v===1?'p1':v>=2?'p2':'');
     el.textContent=L+(v>=2?' · forte':v===1?' · leve':'')},
-  'hstate'(el){$$('[data-act="hstate"]').forEach(b=>b.classList.toggle('on',b===el))},
-  'hsave'(){const d=hDate();S.health[d]=healthDraft(d);save();const r=readiness(d);toast(r?'Prontidão '+r.score+' · '+r.band.name:'Check-in guardado');S.ui.healthDate=null;render()},
+  'hstate'(el){hdraft('state',num(el.dataset.v));$$('[data-act="hstate"]').forEach(b=>b.classList.toggle('on',b===el))},
+  'hsave'(){const d=hDate();S.health[d]=healthDraft(d);S.ui.hdraft=null;save();const r=readiness(d);toast(r?'Prontidão '+r.score+' · '+r.band.name:'Check-in guardado');S.ui.healthDate=null;render()},
   'shot-del'(el){const d=hDate();const id=el.dataset.id;
     if(!((S.shots&&S.shots[d])||[]).some(s=>s.id===id))return;
     pergunta('Apagar este print?','Os números que já foram lidos do print ficam guardados.','Apagar',()=>{
@@ -1882,7 +1905,10 @@ document.addEventListener('click',e=>{
   }
 });
 document.addEventListener('input',e=>{
-  const el=e.target;if(!el.dataset.log||!S.active)return;
+  const el=e.target;
+  // números do check-in escritos à mão: também têm de sobreviver a um re-render
+  if(el.dataset.hnum){const t=el.value===''?null:num(el.value);hdraft(el.dataset.hnum,t);return}
+  if(!el.dataset.log||!S.active)return;
   const [ex,f]=el.dataset.log.split(':');const l=S.active.logs[ex];if(!l)return;
   l[f]=el.dataset.num?num(el.value):el.value;save();
   if(f==='firstPct'){const t=$('#fp-'+ex);if(t)t.textContent=l[f]+'%'}
