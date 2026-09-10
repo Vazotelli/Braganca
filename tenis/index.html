@@ -122,6 +122,12 @@ input[type=date].input{color-scheme:dark}
 .rpe-grid button{min-height:52px;border-radius:11px;background:var(--card2);border:1px solid var(--line);font-weight:800;font-size:17px;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
 .rpe-grid button small{font-size:9px;font-weight:600;letter-spacing:.1px}
 .rpe-grid button.on{color:var(--text);border-color:var(--text);background:var(--card3)}
+.rpe-guia{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.rpe-guia summary{font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;min-height:32px;display:flex;align-items:center;list-style:none}
+.rpe-guia summary::-webkit-details-marker{display:none}
+.rpe-guia summary::before{content:"▸";margin-right:6px;transition:transform .15s;display:inline-block}
+.rpe-guia[open] summary::before{transform:rotate(90deg)}
+.rpe-guia td{vertical-align:top;padding:7px 4px}
 .rpe-grid button.on.g{border-color:var(--green);color:var(--green)}.rpe-grid button.on.y{border-color:var(--yellow);color:var(--yellow)}.rpe-grid button.on.r{border-color:var(--red);color:var(--red)}
 .opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:var(--card2);border:1px solid var(--line);margin-top:8px;min-height:56px}
 .opt:active{background:var(--card3)}
@@ -1377,7 +1383,24 @@ function aulaFormHtml(e){
     <div class="field"><label>Notas</label><textarea class="input" data-log="${e.id}:notes" placeholder="o que o treinador corrigiu, o que saiu bem…">${esc(log.notes)}</textarea></div>
     <button class="btn primary mt16" style="min-height:54px" data-act="s-aula-save">Guardar aula</button></div>`;
 }
-function rpeGridHtml(cur,act){return `<div class="rpe-grid">${[1,2,3,4,5,6,7,8,9,10].map(v=>`<button class="${cur===v?'on':''} ${v<=3?'g':v<=6?'y':'r'}" data-act="${act}" data-v="${v}">${v}${RPE_DESC[v]?`<small>${RPE_DESC[v]}</small>`:''}</button>`).join('')}</div>`}
+function rpeGridHtml(cur,act){return `<div class="rpe-grid">${[1,2,3,4,5,6,7,8,9,10].map(v=>`<button class="${cur===v?'on':''} ${v<=3?'g':v<=6?'y':'r'}" data-act="${act}" data-v="${v}">${v}${RPE_DESC[v]?`<small>${RPE_DESC[v]}</small>`:''}</button>`).join('')}</div>${rpeGuiaHtml()}`}
+// "Difícil" não chega para decidir entre 5 e 7. O que decide é o teste da fala e o que ainda
+// conseguirias fazer a seguir — critérios que se verificam no momento, sem relógio nenhum.
+const RPE_GUIA=[
+  [1,2,'Falas normalmente, respiras pelo nariz','Mobilidade, caminhada. Fazias isto o dia todo'],
+  [3,4,'Conversa seguida, sem esforço','Aquecimento, técnica leve, sombra sem intensidade'],
+  [5,5,'Frases inteiras, mas já preferias não falar','Repetias a sessão outra vez hoje se fosse preciso'],
+  [6,6,'Frases curtas, respiração já pesada','Ainda aguentavas mais 20-30 min. Suor a sério'],
+  [7,7,'Só umas palavras de cada vez','Ainda dava mais 3-4 séries, mas custava. Ficaste contente por ser a última'],
+  [8,8,'Uma ou duas palavras','As últimas séries só saíram à força de vontade'],
+  [9,10,'Não falas','Não havia mais nenhuma repetição lá dentro. Raro: jogo decisivo ou teste'],
+];
+function rpeGuiaHtml(){return `<details class="rpe-guia mt8"><summary>Não sei se foi 5 ou 7 · abrir guia</summary>
+  <div class="xs muted" style="padding:8px 0 2px"><b>Classifica a sessão inteira, não o pior momento</b>, e de preferência uns 30 min depois de acabar. Se classificares o pico, fica tudo a 8.</div>
+  <table class="table" style="margin-top:6px"><tbody>
+  ${RPE_GUIA.map(([a,b,fala,ref])=>`<tr><td class="num" style="width:40px;font-weight:800;color:var(--${a<=3?'green':a<=6?'yellow':'red'})">${a===b?a:a+'-'+b}</td><td><b>${esc(fala)}</b><div class="muted xs">${esc(ref)}</div></td></tr>`).join('')}
+  </tbody></table>
+  <div class="xs dim mt8">Na dúvida entre dois, escolhe o mais baixo: o rácio de carga engana-se menos por defeito do que por excesso.</div></details>`}
 
 // ---------- Cronómetro ----------
 const T={exId:null,mode:null,total:0,startAt:0,base:0,running:false,kind:null,phase:null,cls:''};
