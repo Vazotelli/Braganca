@@ -602,9 +602,15 @@ const SESSIONS={
       {id:'forca',name:'Força',min:30,priority:true,strength:true,ex:['afundo_bulgaro','ponte_gluteo','gemeos','deadbug','skater']},
       {id:'sombra',name:'Sombra',min:9,priority:true,ex:['sombra_reves']}]},
   MOB:{name:'Mobilidade / recuperação',short:'Mobilidade',dur:20,focus:'Recuperar',place:'Casa',intensity:'low',blocks:[{id:'mob',name:'Mobilidade',min:20,priority:true,ex:['mob_ombro']}]},
-  WALK:{name:'Caminhada',short:'Caminhada',dur:45,focus:'Volume aeróbio sem impacto',place:'Rua',intensity:'low',physical:true,blocks:[{id:'walk',name:'Caminhada',min:45,priority:true,ex:['caminhada']}]}
+  WALK:{name:'Caminhada',short:'Caminhada',dur:45,focus:'Volume aeróbio sem impacto',place:'Rua',intensity:'low',physical:true,blocks:[{id:'walk',name:'Caminhada',min:45,priority:true,ex:['caminhada']}]},
+  // Corrida: aquecimento + intervalos + retorno à calma. Intervalos e não corrida contínua longa
+  // porque o ponto de ténis dura 6-10 s — é a mesma razão que está na sessão de hotel.
+  RUN:{name:'Corrida',short:'Corrida',dur:45,focus:'Motor aeróbio e repetição de esforços curtos',place:'Rua',intensity:'high',physical:true,blocks:[
+    {id:'run_aq',name:'Aquecimento',min:10,ex:['corrida_solta']},
+    {id:'run_int',name:'Intervalos',min:25,priority:true,ex:['intervalos']},
+    {id:'run_calma',name:'Retorno à calma',min:10,ex:['corrida_calma']}]}
 };
-const SESSION_LABEL={S1:'Serviço + Pés',S2:'Aula',S3:'Hotel',S4:'Aula',S5:'Fim de semana',S6:'Potência + Core',S5a:'Jogo',S5b:'Força + Serviço',S5c:'Potência + Core',RAIN:'Interior',MOB:'Mobilidade',WALK:'Caminhada'};
+const SESSION_LABEL={S1:'Serviço + Pés',S2:'Aula',S3:'Hotel',S4:'Aula',S5:'Fim de semana',S6:'Potência + Core',S5a:'Jogo',S5b:'Força + Serviço',S5c:'Potência + Core',RAIN:'Interior',MOB:'Mobilidade',WALK:'Caminhada',RUN:'Corrida'};
 
 // Progressão de força por semana do plano
 function strengthNote(w,ph){
@@ -750,7 +756,7 @@ function acwr(d){
   const acute=a/7,chronic=c/28;
   return {acute,chronic,ratio:chronic>0?acute/chronic:null,daysData,calibrated:daysData>=14&&chronic>0};
 }
-function expectedRpe(key){return {S1:6,S2:6,S3:8,S4:6,S5a:8,S5b:7,S5c:6,RAIN:6,MOB:3,WALK:3}[key]||6}
+function expectedRpe(key){return {S1:6,S2:6,S3:8,S4:6,S5a:8,S5b:7,S5c:6,RAIN:6,MOB:3,WALK:3,RUN:7}[key]||6}
 function plannedWeekMinutes(mon){let m=0;for(let i=0;i<7;i++){const d=addDays(mon,i);const r=resolveDay(d);if(!r.key||r.optional)continue;const s=r.recs.length?null:sessionForDay(d);m+=r.recs.length?sum(r.recs.map(x=>x.durationMin||0)):(s?s.est:0)}return m}
 function actualWeekMinutes(mon){let m=0;for(let i=0;i<7;i++)m+=sum(sessionsOn(addDays(mon,i)).map(s=>s.durationMin||0));return m}
 function weekLoads(mon){return Array.from({length:7},(_,i)=>{const d=addDays(mon,i);const r=resolveDay(d);const s=(!r.recs.length&&r.key&&!r.optional)?sessionForDay(d):null;return {d,done:loadOn(d),planned:s?s.est*expectedRpe(r.key):0,status:r.status}})}
@@ -1566,7 +1572,7 @@ function viewSession(id){
     <div class="sheet-foot"><div class="btn-row"><button class="btn sm ghost" data-act="close-sheet">Fechar</button><button class="btn sm danger" data-act="delete-session" data-id="${r.id}">Apagar registo</button></div></div>`);
 }
 function logPastSheet(d){
-  const keys=['S1','S2','S3','S5a','S5b','S5c','WALK','RAIN','MOB'];
+  const keys=['S1','S2','S3','S5a','S5b','S5c','WALK','RUN','RAIN','MOB'];
   sheet(`<h2>Registar sessão</h2><div class="small muted">${esc(fmtDate(d))} · registo rápido, sem detalhe por exercício.</div>
     <div class="field"><label>Sessão</label><div class="chips">${keys.map(k=>`<button class="chip ${k===(S.ui.pastKey||'S1')?'on':''}" data-act="past-key" data-v="${k}">${SESSIONS[k].short}</button>`).join('')}</div></div>
     <div class="field"><label>Duração</label><div class="stepper"><button data-act="past-n" data-f="dur" data-n="-10">−</button><div class="val num" style="min-width:70px" id="past-dur">${S.ui.pastDur||SESSIONS[S.ui.pastKey||'S1'].dur}<span class="unit">min</span></div><button data-act="past-n" data-f="dur" data-n="10">+</button></div></div>
@@ -1589,7 +1595,7 @@ function savePast(d){
 }
 
 // ============================== TROCAS ==============================
-const SWAP_LABEL={rain:'Chuva / campo indisponível',travel:'Estou a viajar',time:'Sem tempo (30 min)',tired:'Cansado / prontidão baixa',match:'Consegui marcar jogo',pain:'Dor',walk:'Só dá para caminhar',extra:'Sessão extra',free:'Dia livre'};
+const SWAP_LABEL={rain:'Chuva / campo indisponível',travel:'Estou a viajar',time:'Sem tempo (30 min)',tired:'Cansado / prontidão baixa',match:'Consegui marcar jogo',pain:'Dor',walk:'Só dá para caminhar',run:'Prefiro correr',extra:'Sessão extra',free:'Dia livre'};
 const SWAP_REASONS=[
   {k:'rain',ico:'🌧',t:'Chuva / campo indisponível',s:'Interior: Força + Sombra + Corda · 45 min'},
   {k:'travel',ico:'🧳',t:'Estou a viajar',s:'Sessão de hotel: intervalos + barras · 55 min'},
@@ -1597,7 +1603,8 @@ const SWAP_REASONS=[
   {k:'tired',ico:'🪫',t:'Cansado / prontidão baixa',s:'Sessão do dia a 60% do volume'},
   {k:'match',ico:'🎾',t:'Consegui marcar jogo',s:'Substitui a sessão por Jogo · 90 min'},
   {k:'pain',ico:'⚠️',t:'Dor',s:'Sessão sem impacto no segmento. Ombro/cotovelo bloqueia o serviço'},
-  {k:'walk',ico:'🚶',t:'Só dá para caminhar',s:'Caminhada com contagem de passos · 45 min'}];
+  {k:'walk',ico:'🚶',t:'Só dá para caminhar',s:'Caminhada com contagem de passos · 45 min'},
+  {k:'run',ico:'🏃',t:'Prefiro correr',s:'Corrida: aquecimento + intervalos + calma · 45 min'}];
 function swapTarget(reason,d,detail){
   const r=resolveDay(d);const base=r.planned==='S5'?'S5b':r.planned==='S6'?'S5c':(r.planned||r.key||'S5b');
   switch(reason){
@@ -1607,6 +1614,7 @@ function swapTarget(reason,d,detail){
     case 'tired':return {key:base,opts:{factor:0.6}};
     case 'match':return {key:'S5a',opts:{}};
     case 'walk':return {key:'WALK',opts:{}};
+    case 'run':return {key:'RUN',opts:{}};
     case 'pain':{const seg=detail||'ombro';const opts={painSegs:[seg],blockServe:seg==='ombro'||seg==='cotovelo'};const s=buildSession(base,d,opts);const has=s&&s.blocks.some(b=>!b.blocked&&b.ex.length);return has?{key:base,opts}:{key:'MOB',opts:{}}}
   }
   return null;
@@ -1638,7 +1646,7 @@ function confirmSwap(reason,detail,start){
   if(start)startSession(tg.key,tg.opts,{swapReason:reason,swapDetail:detail||'',planned:r.planned});else{render();toast('Sessão trocada: '+SESSIONS[tg.key].short)}
 }
 function extraChooser(){
-  const keys=['WALK','S5b','S5c','S5a','S1','S3','RAIN','MOB'];
+  const keys=['WALK','RUN','S5b','S5c','S5a','S1','S3','RAIN','MOB'];
   sheet(`<h2>Sessão extra</h2><div class="small muted">Já registaste uma sessão hoje. Escolhe outra para iniciar. Conta para a carga do dia.</div>
     ${keys.map(k=>`<div class="opt" data-act="extra-start" data-k="${k}"><div class="ico bg-g">▶</div><div class="grow"><b>${esc(SESSIONS[k].name)}</b><span>${SESSIONS[k].dur} min · ${esc(SESSIONS[k].focus)}</span></div>${ICON.right}</div>`).join('')}`);
 }
