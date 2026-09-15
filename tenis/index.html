@@ -380,7 +380,7 @@ function toast(msg,ms=2200){const t=$('#toast');t.textContent=msg;t.classList.ad
 const KEY='tennisOS.v1';
 function defaultState(){return{
   version:1,createdAt:new Date().toISOString(),
-  settings:{startDate:mondayOf(today()),weekendDay:'both',weekendV2:true,matchDate:'',theme:'dark',stepGoal:6000,age:0,hrMax:0},
+  settings:{startDate:mondayOf(today()),weekendDay:'both',weekendV2:true,healthV2:true,matchDate:'',theme:'dark',stepGoal:6000,age:0,hrMax:0},
   sessions:[],      // registos de sessões concluídas
   health:{},        // 'AAAA-MM-DD' -> check-in diário
   shots:{},         // 'AAAA-MM-DD' -> prints da app do relógio (reduzidos)
@@ -404,6 +404,18 @@ function migrate(s){const d=defaultState();
   if(!s.settings.weekendV2){s.settings.weekendDay='both';s.settings.weekendV2=true}
   s.ext=Object.assign({workouts:[],imports:[],daily:{}},s.ext||{});
   s.ui=Object.assign({},d.ui,s.ui||{});
+  // v2 do check-in: a dor passou de 0-2 para 0-10 e o "como estás" de uma pergunta para três.
+  // Converte uma vez e marca, para não voltar a converter valores já convertidos.
+  if(!s.settings.healthV2){
+    for(const k in (s.health||{})){
+      const h=s.health[k];if(!h)continue;
+      if(h.pain)for(const seg in h.pain){const v=h.pain[seg]||0;h.pain[seg]=v>=2?6:v===1?3:0}
+      // Rebentado/Assim-assim/Bem (1-3) → energia 1/3/5. As outras duas perguntas ficam por
+      // responder: melhor vazio do que inventado, e a prontidão já lida com fatores em falta.
+      if(h.state&&h.energia==null)h.energia={1:1,2:3,3:5}[h.state]||3;
+    }
+    s.settings.healthV2=true;
+  }
   return s}
 let saveT;
 // persist escreve no telemóvel. saveNow marca uma revisão nova e manda sincronizar.
@@ -531,7 +543,7 @@ function resolveDay(d){
 // Tipos de registo: checkbox · tempo · sets_reps · servico · spider · corrida_intervalos · jogo · aula
 // seg: segmentos com impacto (para trocas por dor): ombro, cotovelo, joelho, costas
 const EX={
-  corda:{name:'Corda de saltar',type:'tempo',svg:'corda',seg:['joelho'],desc:'Ritmo leve, saltos baixos (2-3 cm), pés juntos, aterrar na ponta do pé com o calcanhar a roçar o chão.',err:'Saltar alto e aterrar de calcanhar. Isto é aquecimento e progressão de tendão, não é cardio.',rope:true},
+  corda:{name:'Corda de saltar',type:'tempo',svg:'corda',seg:['joelho','aquiles'],imp:true,desc:'Ritmo leve, saltos baixos (2-3 cm), pés juntos, aterrar na ponta do pé com o calcanhar a roçar o chão.',err:'Saltar alto e aterrar de calcanhar. Isto é aquecimento e progressão de tendão, não é cardio.',rope:true},
   mobilidade:{name:'Rotações de ombro e anca, círculos de braço',type:'checkbox',svg:'mobilidade',desc:'10 rotações de ombro para cada lado, 10 círculos de anca, 10 círculos de braço grandes e lentos.',err:'Fazer depressa. Amplitude total, sem dor.'},
   serv_aq:{name:'8 serviços a 50% de força',type:'checkbox',svg:'servico_alvos',seg:['ombro','cotovelo'],desc:'Só para acordar o ombro. Lançamento, contacto alto, terminar do lado oposto.',err:'Ir logo a 100%. O ombro frio é onde o tendão parte.',serve:true},
   serv_rondas:{name:'Serviço: 8 rondas × 8 bolas',type:'servico',svg:'servico_alvos',seg:['ombro','cotovelo'],rounds:8,serve:true,
@@ -545,13 +557,13 @@ const EX={
       {n:6,label:'Aberto (lado vantagem)',goal:'Mesmo alvo, agora a 80% de força.',target:'Zona aberta, lado vantagem'},
       {n:7,label:'2.º serviço com efeito',goal:'Kick/slice pesado, alvo largo. Zero duplas faltas.',target:'Metade exterior da caixa'},
       {n:8,label:'2.º serviço com efeito',goal:'Alvo largo, alternar lados.',target:'Metade exterior da caixa'}]},
-  spider:{name:'Spider drill',type:'spider',svg:'spider',seg:['joelho'],reps:5,rest:90,desc:'8 bolas espalhadas pelos cantos e linhas. Parte do centro, recolhe uma, volta ao centro. Cronómetro por repetição, 90 s de pausa.',err:'Correr em linha reta e travar de calcanhar. Passos pequenos ao chegar à bola, split-step ao voltar ao centro.'},
-  splitstep:{name:'Split-step + deslocamento lateral',type:'tempo',svg:'splitstep',seg:['joelho'],sets:4,secs:30,desc:'Salto curto a dois pés, aterrar largo, deslocar lateral 3 passos, split-step, voltar.',err:'Split-step alto. É um salto de 5 cm, no tempo do adversário a bater.'},
+  spider:{name:'Spider drill',type:'spider',svg:'spider',seg:['joelho','aquiles'],imp:true,reps:5,rest:90,desc:'8 bolas espalhadas pelos cantos e linhas. Parte do centro, recolhe uma, volta ao centro. Cronómetro por repetição, 90 s de pausa.',err:'Correr em linha reta e travar de calcanhar. Passos pequenos ao chegar à bola, split-step ao voltar ao centro.'},
+  splitstep:{name:'Split-step + deslocamento lateral',type:'tempo',svg:'splitstep',seg:['joelho','aquiles'],imp:true,sets:4,secs:30,desc:'Salto curto a dois pés, aterrar largo, deslocar lateral 3 passos, split-step, voltar.',err:'Split-step alto. É um salto de 5 cm, no tempo do adversário a bater.'},
   sombra_reves:{name:'Sombra de revés a uma mão (capa posta)',type:'sets_reps',svg:'sombra_reves',seg:['ombro'],sets:3,reps:15,slow:true,desc:'Capa da raquete posta cria resistência. Movimento lento, ombros a rodar, terminar com o braço estendido e o peito aberto.',err:'Abrir o ombro cedo demais. O peito fica de lado até ao contacto. Não é para suar, é para gravar o gesto.'},
   aula:{name:'Aula',type:'aula',svg:'aula'},
-  corrida_solta:{name:'Corrida a soltar',type:'tempo',svg:'corrida',seg:['joelho'],min:10,desc:'Ritmo de conversa. Só a subir a temperatura.',err:'Começar já a puxar.'},
-  intervalos:{name:'Intervalos 12 × (30 s forte / 60 s a andar)',type:'corrida_intervalos',svg:'intervalos',seg:['joelho'],reps:12,work:30,rest:60,desc:'30 s a 85-90%, 60 s a andar. O ponto de ténis dura 6 a 10 s: intervalos curtos servem o objetivo, corrida contínua longa não.',err:'Fazer os primeiros 4 a sprint total e morrer no 8. Ritmo que consegues repetir 12 vezes.',note:'Intervalos curtos porque o ponto de ténis dura 6 a 10 segundos. Corrida contínua longa não serve o objetivo.'},
-  corrida_calma:{name:'Corrida calma',type:'tempo',svg:'corrida',seg:['joelho'],min:8,desc:'Baixar a pulsação. Ritmo muito fácil.',err:'Parar de repente depois dos intervalos.'},
+  corrida_solta:{name:'Corrida a soltar',type:'tempo',svg:'corrida',seg:['joelho','aquiles'],imp:true,min:10,desc:'Ritmo de conversa. Só a subir a temperatura.',err:'Começar já a puxar.'},
+  intervalos:{name:'Intervalos 12 × (30 s forte / 60 s a andar)',type:'corrida_intervalos',svg:'intervalos',seg:['joelho','aquiles'],imp:true,reps:12,work:30,rest:60,desc:'30 s a 85-90%, 60 s a andar. O ponto de ténis dura 6 a 10 s: intervalos curtos servem o objetivo, corrida contínua longa não.',err:'Fazer os primeiros 4 a sprint total e morrer no 8. Ritmo que consegues repetir 12 vezes.',note:'Intervalos curtos porque o ponto de ténis dura 6 a 10 segundos. Corrida contínua longa não serve o objetivo.'},
+  corrida_calma:{name:'Corrida calma',type:'tempo',svg:'corrida',seg:['joelho','aquiles'],imp:true,min:8,desc:'Baixar a pulsação. Ritmo muito fácil.',err:'Parar de repente depois dos intervalos.'},
   remada:{name:'Remada australiana',type:'sets_reps',svg:'remada',seg:['ombro','cotovelo'],sets:3,reps:'8-12',repsN:10,prog:true,desc:'Corpo inclinado sob a barra, corpo em tábua, puxar o peito à barra e apertar as omoplatas em cima.',err:'Anca a cair e cotovelos a abrir. Cotovelos junto ao corpo, corpo rígido.'},
   chinup_neg:{name:'Chin-up negativo',type:'sets_reps',svg:'chinup',seg:['ombro','cotovelo'],sets:3,reps:5,prog:true,desc:'Subir com apoio (salto ou banco), descer em 4 segundos controlados até braços estendidos.',err:'Deixar-se cair nos últimos 20 cm. É aí que o ombro e o cotovelo trabalham.'},
   flexoes:{name:'Flexões',type:'sets_reps',svg:'flexao',seg:['ombro','cotovelo'],sets:3,reps:'8-12',repsN:10,prog:true,desc:'Mãos à largura dos ombros, corpo em tábua, peito quase ao chão, cotovelos a 45°.',err:'Anca a descer primeiro e cabeça a picar. Corpo move-se em bloco.'},
@@ -561,14 +573,14 @@ const EX={
   afundo_bulgaro:{name:'Afundo búlgaro',type:'sets_reps',svg:'afundo_bulgaro',seg:['joelho'],sets:3,reps:8,perSide:true,prog:true,desc:'Pé de trás numa cadeira. Descer até o joelho da frente fazer 90°, tronco ligeiramente inclinado, subir pelo calcanhar.',err:'Joelho da frente a fugir para dentro. Joelho alinhado com o 2.º dedo do pé.'},
   ponte_gluteo:{name:'Ponte de glúteo a uma perna',type:'sets_reps',svg:'ponte_gluteo',seg:['costas'],sets:3,reps:10,perSide:true,prog:true,desc:'Deitado, um pé no chão, outra perna esticada. Subir a anca até alinhar ombro-anca-joelho, 1 s em cima.',err:'Arquear a lombar para subir mais. A subida vem do glúteo, costelas fechadas.'},
   nordico:{name:'Deslize de calcanhar / nórdico assistido',type:'sets_reps',svg:'nordico',seg:['joelho','costas'],sets:3,reps:6,prog:true,desc:'De joelhos, pés presos, descer o tronco à frente devagar segurando com os isquiotibiais; ajudar com as mãos a subir.',err:'Dobrar a anca. Anca esticada, o movimento é só no joelho.'},
-  gemeos:{name:'Elevação de gémeos a uma perna',type:'sets_reps',svg:'gemeos',seg:['joelho'],sets:3,reps:15,perSide:true,prog:true,desc:'Num degrau, subir alto na ponta do pé, descer devagar abaixo do nível do degrau.',err:'Reps rápidas e curtas. Amplitude total, 2 s a descer, protege o Aquiles no piso rápido.'},
+  gemeos:{name:'Elevação de gémeos a uma perna',type:'sets_reps',svg:'gemeos',seg:['joelho','aquiles'],imp:true,sets:3,reps:15,perSide:true,prog:true,desc:'Num degrau, subir alto na ponta do pé, descer devagar abaixo do nível do degrau.',err:'Reps rápidas e curtas. Amplitude total, 2 s a descer, protege o Aquiles no piso rápido.'},
   deadbug:{name:'Dead bug',type:'sets_reps',svg:'deadbug',seg:['costas'],sets:3,reps:10,perSide:true,desc:'De costas, braços e joelhos a 90°. Esticar braço e perna opostos devagar, lombar colada ao chão.',err:'Lombar a levantar do chão. Expira ao esticar, costelas para baixo.'},
-  agach_salto:{name:'Agachamento com salto',type:'sets_reps',svg:'agach_salto',seg:['joelho','costas'],sets:4,reps:5,power:true,desc:'Agachar a 1/4, saltar com intenção máxima, aterrar suave e absorver. Pausa entre reps.',err:'Reps encadeadas a saltitar. Cada salto é máximo, com reset entre elas.'},
-  skater:{name:'Salto lateral (skater)',type:'sets_reps',svg:'skater',seg:['joelho'],sets:3,reps:6,perSide:true,power:true,desc:'Saltar lateralmente de uma perna para a outra, aterrar e estabilizar 1 s antes do próximo.',err:'Aterrar com o joelho a colapsar para dentro. Estabiliza antes de saltar.'},
+  agach_salto:{name:'Agachamento com salto',type:'sets_reps',svg:'agach_salto',seg:['joelho','costas','aquiles'],imp:true,sets:4,reps:5,power:true,desc:'Agachar a 1/4, saltar com intenção máxima, aterrar suave e absorver. Pausa entre reps.',err:'Reps encadeadas a saltitar. Cada salto é máximo, com reset entre elas.'},
+  skater:{name:'Salto lateral (skater)',type:'sets_reps',svg:'skater',seg:['joelho','aquiles'],imp:true,sets:3,reps:6,perSide:true,power:true,desc:'Saltar lateralmente de uma perna para a outra, aterrar e estabilizar 1 s antes do próximo.',err:'Aterrar com o joelho a colapsar para dentro. Estabiliza antes de saltar.'},
   serv_curto:{name:'Serviço curto: 3 rondas × 8 bolas com alvo',type:'servico',svg:'servico_alvos',seg:['ombro','cotovelo'],rounds:3,serve:true,desc:'Alvo definido antes de cada ronda. Ritmo de jogo, ritual completo.',err:'Servir sem alvo. Sem alvo não há registo que sirva.',
     roundPlan:[{n:1,label:'Aberto lado vantagem',goal:'Slice para o revés do destro.',target:'Zona aberta'},{n:2,label:'T lado igualdade',goal:'Slice canhoto que entra pelo T.',target:'T'},{n:3,label:'2.º serviço',goal:'Efeito, alvo largo, zero duplas.',target:'Metade exterior'}]},
   mob_ombro:{name:'Mobilidade de ombro e anca (20 min)',type:'checkbox',svg:'mobilidade',desc:'Círculos, rotações externas com toalha, ponte de anca, gato-camelo. Sem carga.',err:'Transformar isto em treino. Hoje é para recuperar.'},
-  corda_leve:{name:'Corda de saltar (leve)',type:'tempo',svg:'corda',seg:['joelho'],rope:true,desc:'Ritmo baixo, saltos rasos.',err:'Aterrar de calcanhar.'},
+  corda_leve:{name:'Corda de saltar (leve)',type:'tempo',svg:'corda',seg:['joelho','aquiles'],imp:true,rope:true,desc:'Ritmo baixo, saltos rasos.',err:'Aterrar de calcanhar.'},
   caminhada:{name:'Caminhada',type:'passos',svg:'caminhada',target:6000,mins:45,desc:'Passada longa, braços a mexer, tronco direito. Ritmo a que consegues falar mas não cantar.',err:'Andar devagar a olhar para o telemóvel. Isso é passear, não é treino.',note:'A caminhada não substitui os intervalos. Serve para acumular volume aeróbio sem carregar o Aquiles nem o joelho. Conta para a carga, nunca conta como dia de alta intensidade.'}
 };
 const EX_SHORT={sombra_reves:'Sombra revés',remada:'Remada',chinup_neg:'Chin-up neg.',flexoes:'Flexões',ytw:'YTW',prancha_lat:'Prancha lat.',afundo_bulgaro:'Afundo búlgaro',ponte_gluteo:'Ponte glúteo',nordico:'Nórdico',gemeos:'Gémeos',deadbug:'Dead bug',agach_salto:'Agach. salto',skater:'Skater'};
@@ -638,11 +650,26 @@ function buildSession(key,d,opts={}){
   if(opts.short)flags.push({k:'short',t:'Versão curta: só blocos prioritários'});
   const dtm=daysToMatch(d);const noHeavy=dtm!==null&&dtm>=1&&dtm<=3;
   if(noHeavy&&def.blocks.some(b=>b.strength))flags.push({k:'nostrength',t:'Faltam '+dtm+' dias para a prova: sem força pesada'});
-  const pain=painBlock(d);
+  // Dor: reduz primeiro, fecha só quando é sério. Cada domínio (serviço, impacto, tronco) tem o
+  // seu nível, e cada nível o seu fator: verde 100%, amarelo 50%, vermelho fecha.
+  const ps=painState(d);
   const painSegs=opts.painSegs||[];
-  const serveBlocked=pain.active||!!opts.blockServe;
-  const blockWhy=pain.active?'Dor no '+pain.seg+' ≥2 há '+pain.days+' dias':'Dor declarada no '+(painSegs.join('/')||'ombro/cotovelo');
-  if(serveBlocked&&def.blocks.some(b=>b.serve||b.ex.some(e=>EX[e].serve)))flags.push({k:'serveblock',t:'Serviço bloqueado: '+blockWhy.toLowerCase()});
+  const dom={};for(const k of PAIN_DOMS)dom[k]=ps.doms[k];
+  // A troca manual "tenho dor em X" continua a valer, e soma-se ao que está no check-in.
+  for(const s of painSegs){const e=PAIN_SEGS.find(x=>x[0]===s);if(e)dom[e[2]]=PIOR(dom[e[2]],'r')}
+  if(opts.blockServe)dom.serve='r';
+  const domWhy={};
+  for(const p of ps.piores)domWhy[p.dom]=(domWhy[p.dom]?domWhy[p.dom]+' e ':'')+p.label.toLowerCase()+' '+p.v+'/10';
+  for(const s of painSegs){const e=PAIN_SEGS.find(x=>x[0]===s);if(e&&!domWhy[e[2]])domWhy[e[2]]='dor declarada no '+e[1].toLowerCase()}
+  if(opts.blockServe&&!domWhy.serve)domWhy.serve='dor declarada no ombro/cotovelo';
+  const serveBlocked=dom.serve==='r';
+  const blockWhy=domWhy.serve||'dor no ombro/cotovelo';
+  const temServico=def.blocks.some(b=>b.serve||b.ex.some(e=>EX[e].serve));
+  if(serveBlocked&&temServico)flags.push({k:'serveblock',t:'Serviço fechado hoje: '+blockWhy});
+  else if(dom.serve==='y'&&temServico)flags.push({k:'servehalf',t:'Serviço a 50% e sem efeito: '+domWhy.serve});
+  const temImpacto=def.blocks.some(b=>b.ex.some(e=>EX[e].imp));
+  if(temImpacto&&dom.impact==='r')flags.push({k:'impblock',t:'Sem impacto hoje: '+domWhy.impact});
+  else if(temImpacto&&dom.impact==='y')flags.push({k:'imphalf',t:'Impacto a 50%: '+domWhy.impact});
   const sn=strengthNote(w,wi.basePh);
   const rope=ropeSplit(w,wi.deload);
   const blocks=[];
@@ -650,31 +677,47 @@ function buildSession(key,d,opts={}){
     if(opts.short&&!b.priority)continue;
     if(noHeavy&&b.strength)continue;
     const bl={id:b.id,name:b.name,min:Math.round(b.min*(def.physical?factor:1)),note:b.note,serve:!!b.serve,blocked:false,ex:[]};
-    if(b.serve&&serveBlocked){bl.blocked=true;bl.blockReason=blockWhy+'. Bloco de serviço bloqueado até a dor baixar para 0-1.';}
+    if(b.serve&&serveBlocked){bl.blocked=true;bl.blockReason=blockWhy+'. Bloco de serviço fechado hoje. Volta a abrir assim que registares a dor abaixo de 4 e sem piorar.';}
     for(const id of b.ex){
       const e=EX[id];
       // Com os dois dias de fim de semana a força divide-se: pernas no dia 1, potência e core no dia 2.
       if(splitWeekend()&&key==='S5b'&&['deadbug','agach_salto','skater'].includes(id))continue;
       if(e.seg&&e.seg.some(s=>painSegs.includes(s)))continue;
-      if(e.serve&&serveBlocked&&!b.serve)continue;
+      // Fator de dor deste exercício: o pior dos domínios que ele carrega. 0 tira-o da sessão.
+      let pf=1;
+      if(e.serve)pf=Math.min(pf,painFactor(dom.serve));
+      if(e.imp)pf=Math.min(pf,painFactor(dom.impact));
+      if(e.seg&&e.seg.includes('costas'))pf=Math.min(pf,painFactor(dom.core));
+      if(pf===0)continue;
+      const factor2=factor*pf;   // volume final deste exercício
       const x={id,name:e.name,type:e.type,svg:e.svg,desc:e.desc,err:e.err,note:e.note};
-      if(e.type==='sets_reps'){x.sets=scaleN(e.sets,factor);x.reps=e.reps;x.repsN=e.repsN||(typeof e.reps==='number'?e.reps:10);x.unit=e.unit||'reps';x.perSide=!!e.perSide;
+      if(pf<1)x.painNote='A metade do volume por causa da dor. Se doer durante, pára — reduzir é para treinar sem irritar, não para aguentar.';
+      if(e.type==='sets_reps'){x.sets=scaleN(e.sets,factor2);x.reps=e.reps;x.repsN=e.repsN||(typeof e.reps==='number'?e.reps:10);x.unit=e.unit||'reps';x.perSide=!!e.perSide;
         if(e.prog&&sn.reps&&!e.power&&e.unit!=='s')x.repsN=sn.reps,x.reps=sn.reps;
         if(e.prog||e.power)x.prog=e.power&&wi.basePh&&wi.basePh.n===3?'Potência: intenção máxima em cada rep, pausa completa entre reps.':(e.prog?sn.t:null);}
-      if(e.type==='tempo'){x.sets=e.sets?scaleN(e.sets,factor):1;x.secs=e.secs||(e.min?Math.round(e.min*60*factor):0);
-        if(e.rope){const m=key==='S5b'?rope.s5:rope.s1;x.secs=Math.round(m*60);x.ropeMin=m;x.name='Corda de saltar · '+m+' min (semana '+w+')';}}
-      if(e.type==='servico'){x.rounds=scaleN(e.rounds,factor);x.roundPlan=e.roundPlan.slice(0,x.rounds);}
-      if(e.type==='spider'){x.reps=scaleN(e.reps,factor);x.rest=e.rest}
-      if(e.type==='corrida_intervalos'){x.reps=scaleN(e.reps,factor);x.work=e.work;x.rest=e.rest;x.name=x.reps+' × ('+e.work+' s forte / '+e.rest+' s a andar)'}
-      if(e.type==='passos'){x.target=Math.max(500,Math.round((S.settings.stepGoal||e.target)*factor/100)*100);x.mins=Math.round(e.mins*factor)}
+      if(e.type==='tempo'){x.sets=e.sets?scaleN(e.sets,factor2):1;x.secs=e.secs||(e.min?Math.round(e.min*60*factor2):0);
+        if(e.rope){const m=Math.round((key==='S5b'?rope.s5:rope.s1)*pf*10)/10;x.secs=Math.round(m*60);x.ropeMin=m;x.name='Corda de saltar · '+m+' min (semana '+w+')';}}
+      if(e.type==='servico'){
+        x.rounds=scaleN(e.rounds,factor2);
+        let plan=e.roundPlan;
+        // Serviço em amarelo: sem efeito. O kick é o que mais torce o ombro e o cotovelo.
+        if(dom.serve==='y'){plan=plan.filter(r=>!/efeito|kick/i.test(r.label+' '+r.goal));x.noKick=true}
+        x.roundPlan=plan.slice(0,x.rounds);
+        x.rounds=x.roundPlan.length||x.rounds;
+        x.serves=x.rounds*8;
+      }
+      if(e.type==='spider'){x.reps=scaleN(e.reps,factor2);x.rest=e.rest}
+      if(e.type==='corrida_intervalos'){x.reps=scaleN(e.reps,factor2);x.work=e.work;x.rest=e.rest;x.name=x.reps+' × ('+e.work+' s forte / '+e.rest+' s a andar)'}
+      if(e.type==='passos'){x.target=Math.max(500,Math.round((S.settings.stepGoal||e.target)*factor2/100)*100);x.mins=Math.round(e.mins*factor2)}
       bl.ex.push(x);
     }
     if(!bl.ex.length&&!bl.blocked)continue;
     blocks.push(bl);
   }
   // S5b recebe o resto da quota semanal de corda (o que não cabe no aquecimento de S1)
-  if(key==='S5b'&&rope.s5>0&&!opts.short&&!painSegs.includes('joelho')){
-    const e=EX.corda;blocks.unshift({id:'corda',name:'Corda (resto da quota semanal)',min:Math.ceil(rope.s5),ex:[{id:'corda',name:'Corda de saltar · '+rope.s5+' min (resto da quota)',type:'tempo',svg:'corda',desc:e.desc,err:e.err,sets:1,secs:Math.round(rope.s5*60),ropeMin:rope.s5}]});
+  if(key==='S5b'&&rope.s5>0&&!opts.short&&!painSegs.includes('joelho')&&dom.impact!=='r'){
+    const pf=painFactor(dom.impact);const m=Math.round(rope.s5*pf*10)/10;
+    const e=EX.corda;blocks.unshift({id:'corda',name:'Corda (resto da quota semanal)',min:Math.ceil(m),ex:[{id:'corda',name:'Corda de saltar · '+m+' min (resto da quota)',type:'tempo',svg:'corda',desc:e.desc,err:e.err,sets:1,secs:Math.round(m*60),ropeMin:m}]});
   }
   const est=def.lesson?def.dur:sum(blocks.filter(b=>!b.blocked).map(b=>b.min));
   return {key,name:def.name,short:def.short,focus:def.focus,place:def.place,intensity:def.intensity,lesson:!!def.lesson,match:!!def.match,physical:!!def.physical,est,factor,flags,blocks,week:w,rope,opts};
@@ -686,13 +729,27 @@ function sessionForDay(d){
 }
 
 // ============================== SAÚDE / PRONTIDÃO ==============================
-const PAIN_SEGS=[['ombro','Ombro'],['cotovelo','Cotovelo'],['joelho','Joelho'],['costas','Costas']];
+// Zonas de dor. O terceiro campo é o que a dor nessa zona limita:
+// 'serve' = tudo o que serve, 'impact' = corda, saltos, spider e corrida, 'core' = tronco.
+const PAIN_SEGS=[['ombro','Ombro','serve'],['cotovelo','Cotovelo','serve'],
+  ['joelho','Joelho','impact'],['aquiles','Aquiles','impact'],['costas','Costas','core']];
+const PAIN_DOMS=['serve','impact','core'];
+const DOM_LABEL={serve:'serviço',impact:'impacto (corda, saltos, corrida)',core:'carga no tronco'};
+// Bandeiras vermelhas: qualquer uma com dor presente manda para vermelho, seja qual for o número.
+const PAIN_FLAGS=[['pontada','Pontada aguda'],['noturna','Dói à noite'],
+  ['forca','Perdi força'],['inchaco','Está inchado']];
+// Questionário de bem-estar (Hooper). 1 é sempre o pior, 5 é sempre o melhor.
+const WELL_Q=[
+  ['energia','Energia','1 rebentado · 5 cheio de energia'],
+  ['dorMusc','Dor muscular','1 todo dorido · 5 sem dores'],
+  ['stress','Stress','1 muito stressado · 5 tranquilo']];
 // Check-in manual (principal) completado com dados importados (FC repouso, sono) quando faltam
 function healthFor(d){
   const m=S.health[d],x=S.ext.daily&&S.ext.daily[d];if(!m&&!x)return null;
   const h=Object.assign({},m||{});
   if(x){if(h.rhr==null&&x.rhr)h.rhr=x.rhr,h.rhrSrc=x.src;if(h.sleepH==null&&x.sleepH!=null)h.sleepH=x.sleepH,h.sleepSrc=x.src;
     if(h.sleepScore==null&&x.sleepScore)h.sleepScore=x.sleepScore;if(h.sleepHr==null&&x.sleepHr)h.sleepHr=x.sleepHr;
+    if(h.hrv==null&&x.hrv)h.hrv=x.hrv,h.hrvSrc=x.src;
     if(x.steps)h.steps=x.steps;if(!m)h.imported=true}
   return h;
 }
@@ -702,47 +759,139 @@ function baselineOf(d,key){
   return vals.length>=3?median(vals):null;
 }
 const rhrBaseline=d=>baselineOf(d,'rhr');
+// Mediana dos últimos n dias (inclui o próprio dia) e média dos últimos n dias.
+function baselineN(d,key,n,min){
+  const vals=[];for(let i=0;i<n;i++){const h=healthFor(addDays(d,-i));if(h&&h[key])vals.push(h[key])}
+  return vals.length>=(min||3)?median(vals):null;
+}
+function meanLast(d,key,n,min){
+  const vals=[];for(let i=0;i<n;i++){const h=healthFor(addDays(d,-i));if(h&&h[key])vals.push(h[key])}
+  return vals.length>=(min||3)?mean(vals):null;
+}
 // Pontuação por desvio acima da mediana: igual ou abaixo é o melhor sinal
-function vsBaseline(v,b,max){if(b==null)return {score:max*0.75,txt:'sem baseline ainda (neutro)'};const dl=v-b;
+function vsBaseline(v,b,max){if(b==null)return {score:max*0.75,txt:'sem base ainda (neutro)'};const dl=v-b;
   return {score:dl<=0?max:dl<=2?max*0.75:dl<=5?max*0.4:0,txt:'vs mediana '+Math.round(b)+' ('+(dl>0?'+':'')+Math.round(dl)+')'}}
-const STATE_OPTS=[[1,'Rebentado'],[2,'Assim-assim'],[3,'Bem']];
 const BANDS=[{min:80,c:'g',name:'Verde',rec:'Sessão completa. Podes forçar.'},{min:60,c:'y',name:'Amarelo',rec:'Sessão completa, mas sem subir carga.'},{min:40,c:'o',name:'Laranja',rec:'Versão a 60% do volume.'},{min:0,c:'r',name:'Vermelho',rec:'Descanso ou só mobilidade.'}];
 const bandOf=score=>BANDS.find(b=>score>=b.min);
+// Pontuação por desvio, em degraus. dev é "quanto acima da própria base", já no sentido
+// em que mais é melhor; quem quiser o contrário (FC) passa o desvio com o sinal trocado.
+function porDesvio(dev,max,degraus){
+  for(const [lim,frac] of degraus)if(dev>=lim)return max*frac;
+  return 0;
+}
 function readiness(d){
   const h=healthFor(d);if(!h)return null;
   const parts=[];
   const add=(k,label,score,max,detail)=>parts.push({k,label,score:Math.round(score),max,detail});
-  // Sono curto não é penalização linear: abaixo de 6 h a recuperação cai a pique e nada compensa.
-  if(h.sleepH!=null&&h.sleepH>0)add('sleepH','Horas de sono',20*Math.pow(clamp((h.sleepH-3)/5,0,1),1.6),20,fmtH(h.sleepH)+' (alvo 8 h)'+(h.sleepSrc?' · '+h.sleepSrc:''));
-  // A pontuação do relógio já é uma nota de 0 a 100: entra proporcional, sem tetos inventados.
-  // Antes dividia por 85, e qualquer coisa acima de 85 dava 20/20 — 87/100 aparecia como perfeito.
-  if(h.sleepScore)add('sleepScore','Pontuação de sono',clamp(h.sleepScore/100,0,1)*20,20,h.sleepScore+'/100 · do relógio');
-  if(h.rhr){const r=vsBaseline(h.rhr,baselineOf(d,'rhr'),20);add('rhr','FC repouso',r.score,20,h.rhr+' bpm '+r.txt+(h.rhrSrc?' · '+h.rhrSrc:''))}
-  if(h.sleepHr){const r=vsBaseline(h.sleepHr,baselineOf(d,'sleepHr'),15);add('sleepHr','FC média no sono',r.score,15,h.sleepHr+' bpm '+r.txt)}
-  if(!h.imported){const mp=Math.max(0,...PAIN_SEGS.map(([k])=>h.pain&&h.pain[k]||0));
-    const where=PAIN_SEGS.filter(([k])=>(h.pain&&h.pain[k]||0)>0).map(([k,l])=>l+((h.pain[k]||0)>=2?' (forte)':'')).join(', ');
-    add('pain','Dor',mp===0?15:mp===1?9:0,15,mp===0?'nenhuma':where)}
-  if(h.state)add('state','Como estás',(h.state-1)/2*10,10,(STATE_OPTS.find(o=>o[0]===h.state)||[,''])[1]);
+
+  // --- Bem-estar subjetivo · 35 ---
+  // É o fator com mais peso porque é o que melhor acompanha a carga de treino. Três perguntas
+  // de 1 a 5 valem mais do que uma só, e pontuam pelo desvio face ao que costumas responder.
+  const wv=WELL_Q.map(([k])=>h[k]).filter(x=>x!=null);
+  if(wv.length){
+    const hoje=sum(wv)/wv.length;                       // média 1-5, tolera perguntas em branco
+    const base=(()=>{const vals=[];for(let i=1;i<=28;i++){const p=healthFor(addDays(d,-i));if(!p)continue;
+      const v=WELL_Q.map(([k])=>p[k]).filter(x=>x!=null);if(v.length)vals.push(sum(v)/v.length)}
+      return vals.length>=5?median(vals):null})();
+    const sc=base==null?35*clamp((hoje-1)/4,0,1)
+      :porDesvio(hoje-base,35,[[0.34,1],[0,.9],[-0.34,.75],[-0.67,.55],[-1,.34],[-1.34,.15]]);
+    add('bemestar','Bem-estar',sc,35,
+      WELL_Q.filter(([k])=>h[k]!=null).map(([k,l])=>l.toLowerCase()+' '+h[k]).join(' · ')+
+      (base==null?' · sem base ainda (5 dias para calibrar)':' · base '+base.toFixed(1)+'/5'));
+  }
+
+  // --- VFC · 30, com a FC de repouso como substituta ---
+  // Média dos últimos 7 dias contra a base dos últimos 60: um valor isolado de VFC é ruído.
+  const a7=meanLast(d,'hrv',7,3), b60=baselineN(d,'hrv',60,14);
+  if(a7!=null&&b60!=null){
+    const r=a7/b60;
+    add('hrv','VFC',porDesvio(r-1,30,[[0,1],[-0.07,.8],[-0.15,.5],[-0.25,.2]]),30,
+      Math.round(a7)+' ms (7 dias) vs base '+Math.round(b60)+' ms · '+Math.round(r*100)+'%');
+  }else if(a7!=null){
+    add('hrv','VFC',30*0.75,30,Math.round(a7)+' ms · faltam dias para a base de 60 (neutro)');
+  }else if(h.rhr){
+    const r=vsBaseline(h.rhr,baselineOf(d,'rhr'),30);
+    add('hrv','FC repouso',r.score,30,h.rhr+' bpm '+r.txt+' · substitui a VFC'+(h.rhrSrc?' · '+h.rhrSrc:''));
+  }
+
+  // --- Sono · 25, horas e nota como um único fator ---
+  // Eram dois fatores a medir a mesma coisa. Agora é um, e pontua pelo desvio à própria base:
+  // o que interessa é dormires menos do que costumas, não falhares um alvo teórico de 8 h.
+  const sonoP=[];
+  if(h.sleepH!=null&&h.sleepH>0){
+    const b=baselineOf(d,'sleepH');
+    sonoP.push(b==null?Math.pow(clamp((h.sleepH-3)/5,0,1),1.6)
+      :porDesvio(h.sleepH-b,1,[[-0.25,1],[-0.75,.82],[-1.5,.55],[-2.5,.28]]));
+  }
+  if(h.sleepScore){
+    const b=baselineOf(d,'sleepScore');
+    sonoP.push(b==null?clamp(h.sleepScore/100,0,1)
+      :porDesvio(h.sleepScore-b,1,[[-2,1],[-7,.82],[-14,.55],[-22,.28]]));
+  }
+  if(sonoP.length){
+    const bh=baselineOf(d,'sleepH');
+    add('sono','Sono',25*mean(sonoP),25,
+      (h.sleepH!=null&&h.sleepH>0?fmtH(h.sleepH):'')+(h.sleepScore?(h.sleepH?' · ':'')+h.sleepScore+'/100':'')+
+      (bh!=null?' · a tua base é '+fmtH(bh):' · sem base ainda')+(h.sleepSrc?' · '+h.sleepSrc:''));
+  }
+
+  // --- Dor · 10 ---
+  // Aqui não há desvio que valha: a dor pontua pelos três níveis, que são absolutos.
+  if(!h.imported){
+    const ps=painState(d);
+    add('pain','Dor',ps.lvl==='r'?0:ps.lvl==='y'?5:10,10,ps.txt);
+  }
+
   const max=sum(parts.map(p=>p.max));const sc=sum(parts.map(p=>p.score));
   let score=max?Math.round(sc/max*100):0;
-  // Teto por noite curta: uma FC boa não compensa dormir 4 horas.
+  // Teto por noite curta: uma VFC boa não compensa dormir 4 horas.
   let cap=null;const sh=h.sleepH;
   if(sh!=null&&sh>0){if(sh<4)cap={v:30,t:'menos de 4 h de sono'};else if(sh<5)cap={v:45,t:'menos de 5 h de sono'};else if(sh<6)cap={v:65,t:'menos de 6 h de sono'}}
   if(cap&&score>cap.v)score=cap.v;else cap=null;
+  // O verde diz "podes forçar". Não pode aparecer quando a carga da semana já vai disparada:
+  // sentires-te bem é exatamente o estado em que se faz demais.
+  let band=bandOf(score),gate=null;
+  if(band.c==='g'){const g=cargaADisparar(d);if(g.on){band=BANDS.find(b=>b.c==='y');gate=g}}
   // Com menos de metade dos fatores não há score fiável: é falta de dados, não é estares mal.
-  return {score,parts,cap,band:bandOf(score),partial:max<100,weak:max<50,maxPts:max,imported:!!h.imported};
+  return {score,parts,cap,band,gate,partial:max<100,weak:max<50,maxPts:max,imported:!!h.imported};
 }
-// Regra rígida: dor ombro/cotovelo ≥2 em dois dias (≥48 h) → bloqueia serviço até baixar
-function painBlock(d){
-  for(const [seg,label] of PAIN_SEGS.slice(0,2)){
-    const days=[];for(let i=0;i<=4;i++){const dd=addDays(d,-i);const h=S.health[dd];if(h)days.push({dd,v:h.pain&&h.pain[seg]||0})}
-    if(!days.length)continue;
-    const latest=days[0];if(latest.v<2)continue;
-    const earlier=days.find(x=>x.dd<latest.dd&&x.v>=2&&diffDays(x.dd,latest.dd)>=1);
-    if(earlier){const first=[...days].reverse().find(x=>x.v>=2)||earlier;return {active:true,seg:label.toLowerCase(),since:first.dd,days:diffDays(first.dd,d)+1}}
+
+// ============================== DOR: TRÊS NÍVEIS ==============================
+// Escala 0-10 com três níveis, a agir no próprio dia. A regra antiga era lenta e bruta ao mesmo
+// tempo: uma pontada forte só travava o treino 48 h depois, e depois fechava tudo em vez de reduzir.
+//   Verde    0-3 e não piorou de manhã   → plano na mesma
+//   Amarelo  4-5, ou pior do que ontem   → a zona afetada trabalha a 50%
+//   Vermelho ≥6, ou bandeira vermelha    → fecha hoje e sugere fisioterapeuta
+function painSegLevel(d,seg){
+  const h=S.health[d];const v=(h&&h.pain&&h.pain[seg])||0;
+  if(!v)return {lvl:'g',v:0,why:''};
+  const fl=(h&&h.painFlags)||{};
+  const bandeira=PAIN_FLAGS.filter(([k])=>fl[k]).map(([,l])=>l.toLowerCase());
+  if(v>=6)return {lvl:'r',v,why:'dor '+v+'/10'};
+  if(bandeira.length)return {lvl:'r',v,why:'dor '+v+'/10 com '+bandeira.join(' e ')};
+  if(v>=4)return {lvl:'y',v,why:'dor '+v+'/10'};
+  // "Pior de manhã do que na véspera" conta a qualquer nível: num tendão, a dor matinal a subir
+  // é sinal de irritação, mesmo com números baixos. Para tornar isto menos sensível, exigir v>=2.
+  const y=S.health[addDays(d,-1)];const yv=(y&&y.pain&&y.pain[seg])||0;
+  if(y&&v>yv)return {lvl:'y',v,why:'dor '+v+'/10, pior do que ontem ('+yv+')'};
+  return {lvl:'g',v,why:'dor '+v+'/10'};
+}
+const PIOR=(a,b)=>(a==='r'||b==='r')?'r':(a==='y'||b==='y')?'y':'g';
+function painState(d){
+  const out={lvl:'g',segs:{},doms:{serve:'g',impact:'g',core:'g'},piores:[],txt:'nenhuma'};
+  const detalhe=[];
+  for(const [seg,label,dom] of PAIN_SEGS){
+    const r=painSegLevel(d,seg);
+    out.segs[seg]=r;
+    out.doms[dom]=PIOR(out.doms[dom],r.lvl);
+    out.lvl=PIOR(out.lvl,r.lvl);
+    if(r.v>0){detalhe.push(label.toLowerCase()+' '+r.v+'/10');if(r.lvl!=='g')out.piores.push({seg,label,dom,...r})}
   }
-  return {active:false};
+  if(detalhe.length)out.txt=detalhe.join(', ');
+  return out;
 }
+// Quanto é que uma zona afetada corta no volume desse tipo de trabalho.
+function painFactor(lvl){return lvl==='r'?0:lvl==='y'?0.5:1}
 function isHighSession(s){return s.intensity==='high'||(s.rpe||0)>=8}
 function yesterdayHigh(d){return sessionsOn(addDays(d,-1)).find(isHighSession)||null}
 
@@ -750,11 +899,87 @@ function yesterdayHigh(d){return sessionsOn(addDays(d,-1)).find(isHighSession)||
 const sessionLoad=s=>Math.round((s.durationMin||0)*(s.rpe||0));
 const loadOn=d=>sum(sessionsOn(d).map(sessionLoad));
 function firstSessionDate(){return S.sessions.length?S.sessions.map(s=>s.date).sort()[0]:null}
+// O rácio agudo/crónico continua a ser calculado, mas passou a ser só informação. Não decide nada.
+// Duas razões: a esta escala (5-6 sessões por semana) uma sessão a mais mexe a média aguda 15-20%,
+// e a semana aguda está contida na crónica, o que torna o rácio parcialmente correlacionado consigo
+// mesmo. A zona 0.8-1.3 nunca provou ser causal, nem sequer no desporto profissional.
 function acwr(d){
   let a=0,c=0;for(let i=0;i<28;i++){const l=loadOn(addDays(d,-i));c+=l;if(i<7)a+=l}
   const f=firstSessionDate();const daysData=f?diffDays(f,d)+1:0;
   const acute=a/7,chronic=c/28;
   return {acute,chronic,ratio:chronic>0?acute/chronic:null,daysData,calibrated:daysData>=14&&chronic>0};
+}
+// Monotonia e strain (Foster), do mesmo método que dá a carga por RPE. Funcionam com volumes
+// baixos, que é o caso, e dizem coisas que a carga semanal sozinha não diz: uma semana toda igual
+// é pior que a mesma carga com dias fortes e dias mesmo leves.
+function sdOf(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(sum(a.map(x=>(x-m)*(x-m)))/a.length)}
+function dailyLoads(d,n){return Array.from({length:n},(_,i)=>loadOn(addDays(d,-(n-1-i))))}
+// Teto da monotonia. Sete dias exatamente iguais dão desvio-padrão zero, e a fórmula divide por
+// ele. Isso é o pior caso possível, não é ausência de dados: sem teto vinha "null" e a app dizia
+// que estava tudo bem precisamente na semana mais monótona que pode existir.
+const MONO_MAX=3;
+function foster(d){
+  const L=dailyLoads(d,7);
+  const carga=sum(L);
+  if(!carga)return {carga:0,mono:null,strain:null,dias:0};
+  const s=sdOf(L);
+  const mono=s>0?Math.min(mean(L)/s,MONO_MAX):MONO_MAX;
+  return {carga,mono,strain:Math.round(carga*mono),dias:L.filter(x=>x>0).length};
+}
+function weekLoadOf(mon){let l=0;for(let i=0;i<7;i++)l+=loadOn(addDays(mon,i));return l}
+// "A carga da semana está a disparar?" — usado só para travar o verde da prontidão.
+function cargaADisparar(d){
+  const f=foster(d);
+  if(f.mono!=null&&f.mono>2)return {on:true,why:'a monotonia está em '+f.mono.toFixed(1)+' (acima de 2): a semana é toda igual'};
+  const mon=mondayOf(d);
+  const ant=[1,2,3,4].map(i=>weekLoadOf(addDays(mon,-7*i))).filter(x=>x>0);
+  if(ant.length>=2){
+    const ref=mean(ant);const atual=weekLoadOf(mon);
+    if(atual>ref*1.3)return {on:true,why:'a carga desta semana já vai '+Math.round(atual/ref*100)+'% da média das últimas semanas'};
+  }
+  return {on:false};
+}
+// ---- Contador de serviços ----
+// A fase 1 é centrada no serviço com efeito, que é o golpe que mais carrega o ombro e o cotovelo,
+// e até aqui a app não sabia quantos serviços tinham sido feitos. Conta-os e limita a progressão,
+// exatamente como já faz à corda pelo tendão de Aquiles.
+function servesInSession(rec){
+  let n=0,est=false;
+  if(rec.stats&&rec.stats.serve&&rec.stats.serve.s)n+=rec.stats.serve.s;
+  const lg=rec.logs||{};
+  if(lg.aula&&lg.aula.serves)n+=lg.aula.serves;
+  if(lg.jogo){ // num jogo ninguém conta: estima por sets, e diz que é estimativa
+    if(lg.jogo.serves)n+=lg.jogo.serves;
+    else if(lg.jogo.sets){n+=lg.jogo.sets*30;est=true}
+  }
+  return {n,est};
+}
+function servesOn(d){const r=sessionsOn(d).map(servesInSession);return {n:sum(r.map(x=>x.n)),est:r.some(x=>x.est)}}
+function servesWeek(d){const mon=mondayOf(d);let n=0,est=false;
+  for(let i=0;i<7;i++){const r=servesOn(addDays(mon,i));n+=r.n;est=est||r.est}
+  return {n,est}}
+// Quota semanal: 160 na semana 1, +10% por semana, teto 320. Descarga corta a 60%.
+function serveQuota(w,deload){
+  const q=Math.min(320,Math.round(160*Math.pow(1.1,clamp(w,1,99)-1)/10)*10);
+  return Math.round(q*(deload?0.6:1));
+}
+// ---- RPE diferido ----
+// O RPE deve ser dado ~30 min depois da sessão, não no momento: a quente, a última série domina
+// a resposta e a sessão inteira fica mal classificada. A sessão guarda-se na mesma sem RPE; o que
+// não pode é ficar esquecida, porque sem RPE conta zero na carga.
+const RPE_DELAY_MIN=30;
+function pendingRpe(d){
+  const out=[],now=Date.now();
+  for(let i=0;i<7;i++)for(const s of sessionsOn(addDays(d,-i))){
+    if(s.rpe)continue;
+    if(s.rpeDueAt&&now<s.rpeDueAt)continue;  // a janela ainda não abriu
+    out.push(s);
+  }
+  return out;
+}
+function rpeWaiting(d){
+  const now=Date.now();
+  return sessionsOn(d).filter(s=>!s.rpe&&s.rpeDueAt&&now<s.rpeDueAt);
 }
 function expectedRpe(key){return {S1:6,S2:6,S3:8,S4:6,S5a:8,S5b:7,S5c:6,RAIN:6,MOB:3,WALK:3,RUN:7}[key]||6}
 function plannedWeekMinutes(mon){let m=0;for(let i=0;i<7;i++){const d=addDays(mon,i);const r=resolveDay(d);if(!r.key||r.optional)continue;const s=r.recs.length?null:sessionForDay(d);m+=r.recs.length?sum(r.recs.map(x=>x.durationMin||0)):(s?s.est:0)}return m}
@@ -765,12 +990,20 @@ function ropeDoneThisWeek(d){const mon=mondayOf(d);let secs=0;for(let i=0;i<7;i+
 // Alertas ativos para o dia
 function computeAlerts(d){
   const A=[];const wi=weekInfo(d);const sess=sessionForDay(d);
-  const pb=painBlock(d);
-  if(pb.active)A.push({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+' ('+pb.days+' dias). Todos os blocos de serviço ficam fechados até a dor baixar para 0-1 no check-in.'});
+  // Dor: age no próprio dia, e reduz antes de fechar.
+  const ps=painState(d);
+  for(const p of ps.piores){
+    if(p.lvl==='r')A.push({c:'r',t:'Dor no '+p.label.toLowerCase()+': parar '+DOM_LABEL[p.dom].split(' ')[0],
+      x:p.why.charAt(0).toUpperCase()+p.why.slice(1)+'. Hoje fecha tudo o que carrega esta zona ('+DOM_LABEL[p.dom]+') e marca fisioterapeuta. Isto não é para aguentar.'});
+    else A.push({c:'o',t:'Dor no '+p.label.toLowerCase()+': metade do volume',
+      x:p.why.charAt(0).toUpperCase()+p.why.slice(1)+'. '+(p.dom==='serve'
+        ?'Serviço a 50% e sem efeito cortado. Sombra e lançamento continuam livres.'
+        :p.dom==='impact'?'Corda, saltos, spider e corrida a 50%.':'Carga no tronco a 50%.')});
+  }
   const h=S.health[d];
   if(!h)A.push({c:'b',t:'Sem check-in hoje',x:(S.ext.daily&&S.ext.daily[d]?'Há FC e sono importados, mas falta a dor. ':'')+'30 segundos no separador Saúde para calcular a prontidão.',act:'tab:saude'});
   else{const r=readiness(d);
-    if(r&&r.weak)A.push({c:'b',t:'Check-in incompleto',x:'Só '+r.parts.length+' fatores preenchidos. Escreve o sono, a pontuação e as duas FC do relógio para o score valer alguma coisa.',act:'tab:saude'});
+    if(r&&r.weak)A.push({c:'b',t:'Check-in incompleto',x:'Só '+r.parts.length+' fatores preenchidos. Responde às três perguntas de bem-estar e escreve o sono para o score valer alguma coisa.',act:'tab:saude'});
     else if(r&&r.score<40)A.push({c:'r',t:'Prontidão '+r.score+': descanso',x:'Hoje só mobilidade. Forçar com este score é onde a lesão aparece.'});
     else if(r&&r.score<60)A.push({c:'o',t:'Prontidão '+r.score+': versão a 60%',x:'Usa "Trocar sessão → Cansado" para cortar o volume.'})}
   const yh=yesterdayHigh(d);
@@ -778,14 +1011,24 @@ function computeAlerts(d){
   // Semana cheia: com os dois dias de fim de semana só a quinta é de descanso
   let streak=0;for(let i=1;i<=9;i++){if(sessionsOn(addDays(d,-i)).length)streak++;else break}
   if(streak>=5&&sess)A.push({c:'y',t:(streak+1)+'.º dia seguido de treino',x:'A semana está cheia e só a quinta é de descanso. Se a prontidão não estiver verde, troca hoje por caminhada. O corpo adapta-se no descanso, não no treino.'});
-  const ac=acwr(d);
-  if(ac.calibrated&&ac.ratio!=null){if(ac.ratio>1.3)A.push({c:'y',t:'Rácio de carga '+ac.ratio.toFixed(2)+' (>1.3)',x:'Carga aguda muito acima da crónica: risco de lesão. Não subas volume esta semana.'});else if(ac.ratio<0.8)A.push({c:'y',t:'Rácio de carga '+ac.ratio.toFixed(2)+' (<0.8)',x:'Estás a destreinar. Cumpre as sessões planeadas.'})}
+  // Monotonia: o sinal que a carga semanal sozinha não dá. Sete dias todos iguais, mesmo que
+  // somem pouco, é pior que a mesma soma com dias fortes e dias mesmo leves.
+  const fo=foster(d);
+  if(fo.mono!=null&&fo.mono>2&&fo.dias>=4)A.push({c:'y',t:'Monotonia '+fo.mono.toFixed(1)+' (acima de 2)',
+    x:'Os últimos 7 dias são todos parecidos. Faz o dia forte mais forte e o dia leve mesmo leve — ou mete um dia a zero. A variação é que faz adaptar.'});
+  // Sessões por classificar: sem RPE não há carga nenhuma, e metade do treino fica invisível.
+  const pend=pendingRpe(d);
+  if(pend.length)A.push({c:'o',t:pend.length===1?'Falta classificar uma sessão':'Faltam classificar '+pend.length+' sessões',
+    x:pend.map(s=>s.short+' de '+fmtShort(s.date)).join(', ')+'. Sem RPE a sessão conta zero na carga, e as aulas e os jogos são metade do teu treino.',act:'tab:hoje'});
   if(wi.deload&&!wi.beyond)A.push({c:'b',t:'Semana '+wi.w+' é de descarga',x:'Sessões físicas a 60% do volume. Aulas mantidas. Não é fraqueza, é planeamento.'});
   if(wi.match){const dtm=daysToMatch(d);A.push({c:'b',t:'Semana de prova'+(dtm>0?' · faltam '+dtm+' dias':dtm===0?' · é hoje':''),x:'Volume técnico a 60%. Sem força pesada nos 3 dias anteriores.'})}
   const mon=mondayOf(d);const last=actualWeekMinutes(addDays(mon,-7));const plan=plannedWeekMinutes(mon);
   if(last>0&&plan>last*1.1){const cut=Math.round(plan-last*1.1);A.push({c:'y',t:'Plano da semana +'+Math.round((plan/last-1)*100)+'% vs semana passada',x:'Semana passada: '+last+' min. Plano: '+plan+' min. Limite +10%. Corta ~'+cut+' min: bloco sombra e 2-3 rondas de serviço, ou uma sessão a 60%.'})}
   const rd=ropeDoneThisWeek(d);const rq=ropeSplit(wi.w,wi.deload).quota;
   if(rd>rq+1)A.push({c:'y',t:'Corda acima da quota ('+rd.toFixed(0)+'/'+rq+' min)',x:'Aquiles + piso rápido. Não saltes mais esta semana.'});
+  const sv=servesWeek(d);const sq=serveQuota(wi.w,wi.deload);
+  if(sv.n>sq)A.push({c:'y',t:'Serviços acima da quota ('+sv.n+'/'+sq+')',
+    x:'O serviço com efeito é o golpe que mais carrega o ombro e o cotovelo, e esta semana já passaste a quota. Corta rondas na próxima sessão de serviço.'+(sv.est?' (o jogo entra estimado a 30 serviços por set)':'')});
   return A;
 }
 
@@ -843,8 +1086,17 @@ function renderHoje(){
   h+=`<div class="card tight"><div class="row" style="justify-content:space-around">
     <div class="center">${ring(doneMin,planMin||1,{size:82,stroke:8,color:'var(--blue)',value:doneMin,label:'min'})}<div class="label mt4">Volume <span class="dim">/${planMin}</span></div></div>
     <div class="center">${ring(adh,100,{size:82,stroke:8,color:adh>=80?'var(--green)':adh>=60?'var(--yellow)':'var(--red)',value:adh+'%',label:'28 d'})}<div class="label mt4">Aderência</div></div>
-    <div class="center">${ring(ac.ratio!=null?clamp(ac.ratio,0,2):0,2,{size:82,stroke:8,color:!ac.calibrated?'var(--dim)':ac.ratio>1.3||ac.ratio<0.8?'var(--yellow)':'var(--green)',value:ac.ratio!=null?ac.ratio.toFixed(2):'–',label:'A:C'})}<div class="label mt4">${ac.calibrated?'Rácio carga':'Calibrar '+Math.min(ac.daysData,14)+'/14'}</div></div>
+    ${(()=>{ // O terceiro anel era o rácio A:C. Saiu daqui: não decide nada, e um anel no ecrã
+      // principal é uma decisão disfarçada. No lugar dele a monotonia, que decide mesmo.
+      const fo=foster(d);
+      const mo=fo.mono;
+      return `<div class="center">${ring(mo!=null?clamp(mo,0,3):0,3,{size:82,stroke:8,
+        color:mo==null?'var(--dim)':mo>2?'var(--yellow)':'var(--green)',
+        value:mo!=null?mo.toFixed(1):'–',label:'mono'})}<div class="label mt4">${mo!=null?'Monotonia':'Sem carga ainda'}</div></div>`;
+    })()}
   </div></div>`;
+  // Sessões à espera de RPE. Sem isto, uma aula sem classificar conta zero e some do histórico.
+  h+=pendingRpeHtml(d);
   // session card
   h+=sessionCardHtml(d,day,sess);
   // alerts
@@ -854,6 +1106,30 @@ function renderHoje(){
   h+=`<div class="sec">Carga da semana <span class="muted xs" style="text-transform:none;letter-spacing:0;font-weight:600">duração × RPE</span></div><div class="card"><div class="bars">`+wl.map(x=>`<div class="bar ${x.d===d?'today':''}"><div class="d">${DIAS_S[dow(x.d)]}</div><div class="track"><div class="plan" style="width:${pct(x.planned,mx)}%"></div><div class="fill" style="width:0;background:${x.status==='swapped'?'var(--yellow)':x.status==='missed'?'var(--red)':'var(--blue)'}" data-w="${pct(x.done,mx)}%"></div></div><div class="v num">${x.done?x.done:x.planned?'<span class="dim">~'+x.planned+'</span>':'–'}</div></div>`).join('')+`</div>
     <div class="row between mt12 small muted"><span>Aguda ${Math.round(ac.acute)}/dia</span><span>Crónica ${Math.round(ac.chronic)}/dia</span><span>Semana ${sum(wl.map(x=>x.done))}</span></div></div>`;
   $('#scr-hoje').innerHTML=h;
+}
+// Sessões por classificar. A janela abre ~30 min depois de terminar: a quente, a última série
+// domina a resposta e o RPE sai errado para a sessão toda.
+function pendingRpeHtml(d){
+  const abertas=pendingRpe(d),espera=rpeWaiting(d);
+  if(!abertas.length&&!espera.length)return '';
+  let h='';
+  if(abertas.length){
+    const s=abertas[0];
+    h+=`<div class="card" style="border:1px solid var(--orange)">
+      <div class="label">Falta classificar${abertas.length>1?' · '+abertas.length+' sessões':''}</div>
+      <h3 class="mt4">${esc(s.short||s.name)} · ${esc(fmtShort(s.date))}</h3>
+      <div class="small muted mt4">${s.durationMin} min. Quanto custou a sessão inteira, de 0 a 10? Sem isto conta zero na carga.</div>
+      ${rpeGridHtml(null,'pend-rpe')}
+      <input type="hidden" id="pend-id" value="${esc(s.id)}">
+      ${abertas.length>1?`<div class="xs dim mt8">Depois desta ficam mais ${abertas.length-1}.</div>`:''}
+    </div>`;
+  }
+  for(const s of espera){
+    const t=new Date(s.rpeDueAt);
+    h+=`<div class="card tight"><div class="row between"><div><b>${esc(s.short||s.name)}</b><div class="xs muted">Guardada. Classificas às ${pad(t.getHours())}:${pad(t.getMinutes())}, ~30 min depois de terminar.</div></div>
+      <button class="btn xs ghost" data-act="rpe-now" data-id="${esc(s.id)}">Classificar já</button></div></div>`;
+  }
+  return h;
 }
 function sessionCardHtml(d,day,sess){
   const isToday=d===today();
@@ -935,7 +1211,8 @@ function renderSaude(){
     if(dr&&dr[k]!=null)return dr[k];
     return h0[k]!=null?h0[k]:def;
   };
-  const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,costas:0},h0.pain||{},(dr&&dr.pain)||{});
+  const pain=Object.assign({ombro:0,cotovelo:0,joelho:0,aquiles:0,costas:0},h0.pain||{},(dr&&dr.pain)||{});
+  const flags=Object.assign({},h0.painFlags||{},(dr&&dr.painFlags)||{});
   const r=readiness(d);
   const nf=(k,ph,mn,mx,unit,hint)=>`<div class="numrow"><div class="grow"><div class="nl">${ph}</div>${hint?`<div class="nh">${hint}</div>`:''}</div><input class="input num nin" type="number" inputmode="numeric" min="${mn}" max="${mx}" value="${v(k,'')}" placeholder="–" data-hnum="${k}"><span class="nu">${unit}</span></div>`;
   const shots=(S.shots&&S.shots[d])||[];
@@ -949,15 +1226,37 @@ function renderSaude(){
     <div class="numrow"><div class="grow"><div class="nl">Sono</div><div class="nh">o total que a app mostra</div></div><input class="input num nin" style="width:64px" type="number" inputmode="numeric" min="0" max="14" value="${hh}" placeholder="–" data-hnum="sleepHH"><span class="nu">h</span><input class="input num nin" style="width:64px" type="number" inputmode="numeric" min="0" max="59" value="${hm}" placeholder="–" data-hnum="sleepMM"><span class="nu">min</span></div>
     ${nf('sleepScore','Pontuação de sono','0','100','/100','o número grande do anel')}
     ${nf('rhr','FC repouso','30','120','bpm',(()=>{const b=baselineOf(d,'rhr');return b?'a tua mediana de 28 dias é '+Math.round(b):'precisa de 3 dias para ter mediana'})())}
-    ${nf('sleepHr','FC média no sono','30','120','bpm',(()=>{const b=baselineOf(d,'sleepHr');return b?'a tua mediana de 28 dias é '+Math.round(b):'o melhor sinal de recuperação que o relógio dá'})())}
+    ${nf('hrv','VFC (SDNN)','5','250','ms',(()=>{const a=meanLast(d,'hrv',7,3),b=baselineN(d,'hrv',60,14);
+      return b!=null&&a!=null?'média 7 dias '+Math.round(a)+' · base 60 dias '+Math.round(b):'o marcador objetivo com mais peso. Faltam dias para a base de 60'})())}
+    ${nf('sleepHr','FC média no sono','30','120','bpm',(()=>{const b=baselineOf(d,'sleepHr');return b?'a tua mediana de 28 dias é '+Math.round(b):'já não pontua sozinho — ficou como contexto'})())}
 
-    <div class="sub mt16">Rápido</div>
-    <div class="field" style="margin-top:8px"><label>Dor · toca só se tiveres. Segundo toque marca forte</label><div class="chips">${PAIN_SEGS.map(([k,l])=>{const lv=pain[k]||0;return `<button class="chip pain ${lv===1?'p1':lv>=2?'p2':''}" data-act="hpain" data-k="${k}" data-v="${lv}">${l}${lv>=2?' · forte':lv===1?' · leve':''}</button>`}).join('')}</div><div class="xs dim mt4">Ombro ou cotovelo marcados como forte dois dias seguidos bloqueiam o serviço.</div></div>
-    <div class="field"><label>Como estás</label><div class="seg">${STATE_OPTS.map(([val,lab])=>`<button class="${v('state',2)===val?'on':''}" data-act="hstate" data-v="${val}">${lab}</button>`).join('')}</div></div>
+    <div class="sub mt16">Como estás · pesa 35 dos 100</div>
+    <div class="xs dim" style="margin:6px 0 2px">O questionário subjetivo é o que melhor acompanha a carga de treino — por isso pesa mais do que qualquer número do relógio. 1 é sempre o pior, 5 o melhor.</div>
+    ${WELL_Q.map(([k,lab,hint])=>`<div class="field" style="margin-top:10px"><label>${lab} <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:600">${hint}</span></label>
+      <div class="seg">${[1,2,3,4,5].map(n=>`<button class="${v(k,null)===n?'on':''}" data-act="hwell" data-k="${k}" data-v="${n}">${n}</button>`).join('')}</div></div>`).join('')}
 
-    <div class="sub mt16">Prints da app <span class="dim" style="text-transform:none;letter-spacing:0">${shots.length}/4</span></div>
+    <div class="sub mt16">Dor · 0 a 10 por zona</div>
+    <div class="xs dim" style="margin:6px 0 2px">Isto é dor de articulação ou tendão, não é o músculo dorido do treino de ontem (essa é a pergunta de cima). 0-3 segue o plano · 4-5 corta a zona a metade · 6+ fecha hoje.</div>
+    ${PAIN_SEGS.map(([k,l,dm])=>{
+      const lv=pain[k]||0;const aberto=S.ui.painOpen===k;
+      const nv=lv>=6?'r':lv>=4?'y':lv>0?'b':'';
+      return `<div class="field" style="margin-top:8px">
+        <button class="numrow" style="width:100%;text-align:left" data-act="hpain-open" data-k="${k}">
+          <div class="grow"><div class="nl">${l}</div><div class="nh">${DOM_LABEL[dm]}</div></div>
+          <span class="badge ${nv}">${lv}/10</span>
+        </button>
+        ${aberto?`<div class="rpe-grid mt8">${[0,1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="${lv===n?'on':''} ${n>=6?'r':n>=4?'y':'g'}" data-act="hpain" data-k="${k}" data-v="${n}">${n}</button>`).join('')}</div>`:''}
+      </div>`;
+    }).join('')}
+    ${Math.max(0,...PAIN_SEGS.map(([k])=>pain[k]||0))>0?`
+      <div class="field" style="margin-top:10px"><label>Alguma destas? Qualquer uma manda para vermelho</label>
+        <div class="chips">${PAIN_FLAGS.map(([k,l])=>`<button class="chip pain ${flags[k]?'p2':''}" data-act="hflag" data-k="${k}">${l}</button>`).join('')}</div>
+        <div class="xs dim mt4">Pontada, dor à noite, perda de força ou inchaço não são "dor de treino". Com qualquer uma destas, hoje fecha e marca-se fisioterapeuta.</div></div>`:''}
+
+    <div class="sub mt16">Prints da app <span class="dim" style="text-transform:none;letter-spacing:0">${shots.length}/${SHOT_PER_DAY}</span></div>
     <div class="shots mt8">${shots.map(s=>`<div class="shot"><img src="${s.data}" alt="print de ${esc(d)}" data-act="shot-open" data-id="${s.id}"><button class="shot-x" data-act="shot-del" data-id="${s.id}" aria-label="Apagar">${ICON.x}</button></div>`).join('')}
-      ${shots.length<4?`<label class="shot add">＋<input type="file" accept="image/*" class="hide" data-act-input="shot-add"></label>`:''}</div>
+      ${shots.length<SHOT_PER_DAY?`<label class="shot add">＋<input type="file" accept="image/*" multiple class="hide" data-act-input="shot-add"></label>`:''}</div>
+    ${shots.length<SHOT_PER_DAY?`<div class="xs dim mt4">Podes escolher vários de uma vez — sono, FC e treino no mesmo lote.</div>`:''}
     ${(()=>{const rd=shotRead(d);const bits=[];
       if(rd.sleepHH!=null||rd.sleepMM!=null)bits.push('sono '+(rd.sleepHH||0)+'h'+pad(rd.sleepMM||0));
       for(const k of ['sleepScore','rhr','sleepHr'])if(rd[k]!=null)bits.push(READ_LABEL[k]+' '+rd[k]);
@@ -969,9 +1268,17 @@ function renderSaude(){
   </div>`;
   if(r){h+=`<div class="sec">Prontidão · como foi calculada</div><div class="card"><div class="row" style="gap:14px">${ring(r.score,100,{size:96,stroke:9,color:`var(--${r.band.c==='o'?'orange':r.band.c==='g'?'green':r.band.c==='y'?'yellow':'red'})`,label:r.band.name})}<div class="grow"><div style="font-weight:700">${esc(r.band.rec)}</div><div class="small muted mt4">${r.weak?'<b class="b">Só '+r.parts.length+' fatores preenchidos.</b> O score aparece, mas não decide nada até teres o sono e as FC do relógio.':'Soma ponderada de '+r.parts.length+' fatores, normalizada a 100'+(r.partial?' (fatores em falta excluídos)':'')+'.'}</div></div></div>
     <div class="mt12">${r.parts.map(p=>`<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><div><b>${esc(p.label)}</b><div class="muted xs">${esc(p.detail)}</div></div><div class="num" style="font-weight:700">${p.score}<span class="muted">/${p.max}</span></div></div>`).join('')}</div>
-    ${r.cap?`<div class="alert o" style="margin:12px 0 0">${ICON.warn}<div><b>Limitado a ${r.cap.v}</b>Dormiste ${esc(r.cap.t)}. A soma dos fatores dava mais, mas uma FC boa não compensa uma noite curta.</div></div>`:''}
-    <div class="small muted mt12">Bandas: 80-100 verde (podes forçar) · 60-79 amarelo (sem subir carga) · 40-59 laranja (60% do volume) · &lt;40 vermelho (descanso). Todos os números vêm do relógio, menos a dor e o "como estás". Regras rígidas sobrepõem-se ao score: ombro ou cotovelo marcados como forte dois dias seguidos bloqueiam o serviço; nunca dois dias seguidos de alta intensidade.</div></div>`}
-  const pb=painBlock(today());if(pb.active)h+=alertHtml({c:'r',t:'Serviço bloqueado',x:'Dor no '+pb.seg+' ≥2 desde '+fmtShort(pb.since)+'. Regista a dor a 0-1 para desbloquear.'});
+    ${r.cap?`<div class="alert o" style="margin:12px 0 0">${ICON.warn}<div><b>Limitado a ${r.cap.v}</b>Dormiste ${esc(r.cap.t)}. A soma dos fatores dava mais, mas uma VFC boa não compensa uma noite curta.</div></div>`:''}
+    ${r.gate?`<div class="alert y" style="margin:12px 0 0">${ICON.warn}<div><b>Verde travado para amarelo</b>O score dava verde, mas ${esc(r.gate.why)}. "Podes forçar" com a carga já disparada é exatamente onde se faz demais: sessão completa, sem subir.</div></div>`:''}
+    <div class="small muted mt12">Pesos: bem-estar 35 · VFC 30 (ou FC de repouso, quando não há VFC) · sono 25 (horas e nota juntas) · dor 10.
+      Cada fator pontua pelo <b>desvio face à tua própria base</b>, não por valores absolutos — o que interessa é estares abaixo do teu normal, não falhares um alvo teórico.
+      Bandas: 80-100 verde (podes forçar) · 60-79 amarelo (sem subir carga) · 40-59 laranja (60% do volume) · &lt;40 vermelho (descanso).
+      Regras rígidas sobrepõem-se ao score: dor 6+ ou com bandeira vermelha fecha a zona no próprio dia; dor 4-5 corta-a a metade; nunca dois dias seguidos de alta intensidade.
+      <b>Os pesos não estão calibrados contra os teus dados</b> — vieram de revisão externa, não de validação clínica. Os limiares de dor merecem confirmação de um fisioterapeuta antes de servirem para mais alguém.</div></div>`}
+  const ps0=painState(today());
+  for(const p of ps0.piores)h+=alertHtml(p.lvl==='r'
+    ?{c:'r',t:'Dor no '+p.label.toLowerCase()+': '+DOM_LABEL[p.dom].split(' ')[0]+' fechado hoje',x:p.why.charAt(0).toUpperCase()+p.why.slice(1)+'. Marca fisioterapeuta. Volta a abrir quando registares abaixo de 4, sem bandeiras e sem piorar de um dia para o outro.'}
+    :{c:'o',t:'Dor no '+p.label.toLowerCase()+': metade do volume',x:p.why.charAt(0).toUpperCase()+p.why.slice(1)+'. A sessão de hoje já vem com essa zona cortada a 50%.'});
   // histórico
   const days=[];for(let i=27;i>=0;i--){const dd=addDays(today(),-i);days.push({d:dd,h:healthFor(dd)})}
   const has=days.filter(x=>x.h);
@@ -985,7 +1292,8 @@ function renderSaude(){
         <div class="row between small mt12"><b>FC repouso</b><span class="muted num">média ${rh.length?Math.round(mean(rh)):'–'} bpm · min ${rh.length?Math.min(...rh):'–'}</span></div>${sp('rhr','var(--green)',Math.max(1,...rh))}
         ${shr.length?`<div class="row between small mt12"><b>FC média no sono</b><span class="muted num">média ${Math.round(mean(shr))} bpm · min ${Math.min(...shr)}</span></div>${sp('sleepHr','var(--green)',Math.max(1,...shr))}`:''}
         ${has.some(x=>x.h.steps)?`<div class="row between small mt12"><b>Passos</b><span class="muted num">média ${fmtN(Math.round(mean(has.filter(x=>x.h.steps).map(x=>x.h.steps))))}/dia</span></div>${sp('steps','var(--blue)',Math.max(1,...has.filter(x=>x.h.steps).map(x=>x.h.steps)))}`:''}
-        <div class="row between small mt12"><b>Dor</b><span class="muted num">dias com dor forte: ${has.filter(x=>Math.max(0,...PAIN_SEGS.map(([s])=>x.h.pain&&x.h.pain[s]||0))>=2).length}</span></div>${sp('pain','var(--red)',2)}
+        ${has.some(x=>x.h.hrv)?`<div class="row between small mt12"><b>VFC</b><span class="muted num">média ${Math.round(mean(has.filter(x=>x.h.hrv).map(x=>x.h.hrv)))} ms</span></div>${sp('hrv','var(--green)',Math.max(1,...has.filter(x=>x.h.hrv).map(x=>x.h.hrv)))}`:''}
+        <div class="row between small mt12"><b>Dor</b><span class="muted num">dias em vermelho: ${has.filter(x=>painState(x.d).lvl==='r').length} · em amarelo: ${has.filter(x=>painState(x.d).lvl==='y').length}</span></div>${sp('pain','var(--red)',10)}
         <div class="row between small mt12"><b>Prontidão</b><span class="muted num">${(()=>{const rs=has.map(x=>readiness(x.d).score);return 'média '+Math.round(mean(rs))})()}</span></div><div class="spark">${days.map(x=>{const rr=x.h?readiness(x.d):null;return `<i style="height:${rr?clamp(rr.score,4,100):2}%;background:var(--${rr?({g:'green',y:'yellow',o:'orange',r:'red'})[rr.band.c]:'dim'});opacity:${rr?.9:.15}"></i>`}).join('')}</div>
         <div class="row between xs dim mt4"><span>${fmtShort(days[0].d)}</span><span>hoje</span></div>`;
   }
@@ -1013,11 +1321,23 @@ function hdraft(k,val){
 function healthDraft(d){ // valores atuais do formulário → objeto
   const el=$('#scr-saude');
   const n=(k,mn,mx)=>{const i=$(`[data-hnum="${k}"]`,el);if(!i||i.value==='')return null;const v=num(i.value);return v>=mn&&v<=mx?v:null};
-  const pain={};for(const [k] of PAIN_SEGS){const b=$(`[data-act="hpain"][data-k="${k}"]`,el);pain[k]=b?num(b.dataset.v):0}
-  const st=$('[data-act="hstate"].on',el);
+  // A dor e o bem-estar vivem no rascunho (o formulário só mostra a zona aberta), por isso
+  // leem-se de lá e não do DOM — senão uma zona fechada voltava a zero ao guardar.
+  const dr=(S.ui.hdraft&&S.ui.hdraft.date===d)?S.ui.hdraft:null;
+  const h0=S.health[d]||{};
+  const pain={};for(const [k] of PAIN_SEGS){
+    const dv=dr&&dr.pain&&dr.pain[k]!=null?dr.pain[k]:null;
+    pain[k]=dv!=null?dv:(h0.pain&&h0.pain[k])||0;
+  }
+  const painFlags=Object.assign({},h0.painFlags||{},(dr&&dr.painFlags)||{});
+  const well={};for(const [k] of WELL_Q){
+    const dv=dr&&dr[k]!=null?dr[k]:null;
+    well[k]=dv!=null?dv:(h0[k]!=null?h0[k]:null);
+  }
   const hh=n('sleepHH',0,14),mm=n('sleepMM',0,59);
   const sleepH=(hh!=null||mm!=null)?Math.round(((hh||0)+(mm||0)/60)*100)/100:null;
-  return {sleepH,sleepScore:n('sleepScore',0,100),rhr:n('rhr',30,120),sleepHr:n('sleepHr',30,120),pain,state:st?num(st.dataset.v):2,at:new Date().toISOString()};
+  return Object.assign({sleepH,sleepScore:n('sleepScore',0,100),rhr:n('rhr',30,120),
+    sleepHr:n('sleepHr',30,120),hrv:n('hrv',5,250),pain,painFlags,at:new Date().toISOString()},well);
 }
 // ---------- Prints da app do relógio ----------
 // Guardados no próprio ficheiro, reduzidos a 560px e JPEG 0.5, para caberem no localStorage.
@@ -1037,9 +1357,10 @@ function fileToImg(file){ // reserva para quando createImageBitmap não existe o
     fr.readAsDataURL(file);
   });
 }
-async function addShot(d,file){
+async function addShot(d,file,lote){
+  lote=lote||{};
   if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
-  toast('A processar a imagem…',6000);
+  toast(lote.lote?'A processar a imagem '+lote.indice+' de '+lote.total+'…':'A processar a imagem…',6000);
   const fail=(msg)=>{toast(msg,5000);console.warn('addShot:',msg)};
   let done=false;
   const watchdog=setTimeout(()=>{if(!done)fail('Demorou demasiado a processar. Tenta uma imagem mais pequena (print de ecrã em vez de foto).')},15000);
@@ -1098,8 +1419,33 @@ async function addShot(d,file){
   }
 }
 // Lê o print de resumo de um treino e propõe o RPE. Guarda só os números, não a imagem.
-async function rpeFromShot(file){
-  if(!/^image\//.test(file.type)){toast('Isso não é uma imagem');return}
+// Vários prints de treino: tenta um a um e fica-se pelo primeiro que traga a FC média. Os ecrãs
+// de resumo do relógio costumam vir em lote e nem todos têm os números que interessam.
+async function rpeFromShots(files){
+  const imgs=files.filter(f=>/^image\//.test(f.type));
+  if(!imgs.length){toast('Nenhuma dessas é uma imagem');return}
+  for(let i=0;i<imgs.length;i++){
+    const ok=await rpeFromShot(imgs[i],{silencioso:i<imgs.length-1});
+    if(ok)return;
+  }
+}
+async function addShots(d,files){
+  const imgs=files.filter(f=>/^image\//.test(f.type));
+  if(!imgs.length){toast(files.length?'Nenhum desses ficheiros é uma imagem':'Não escolheste nenhuma imagem');return}
+  let feitos=0;
+  for(const f of imgs){
+    const arr=(S.shots&&S.shots[d])||[];
+    if(arr.length>=SHOT_PER_DAY){
+      toast('Guardei '+feitos+' de '+imgs.length+'. O limite é '+SHOT_PER_DAY+' prints por dia — apaga algum para meter mais.',5000);
+      return;
+    }
+    await addShot(d,f,{lote:imgs.length>1,indice:feitos+1,total:imgs.length});
+    feitos++;
+  }
+}
+async function rpeFromShot(file,o){
+  o=o||{};
+  if(!/^image\//.test(file.type)){if(!o.silencioso)toast('Isso não é uma imagem');return false}
   if(!S.active){toast('Não há sessão em curso');return}
   toast('A ler o print…',6000);
   try{
@@ -1134,7 +1480,10 @@ const READ_LABEL={sleepHH:'sono (h)',sleepMM:'sono (min)',sleepScore:'pontuaçã
 // Vai ao estado e não ao DOM, senão o render seguinte apagava tudo.
 function applyRead(d,read){
   const form=$('#scr-saude')?healthDraft(d):null; // o que está escrito no ecrã agora
-  const cur=Object.assign({},S.health[d]||{},form?{sleepH:form.sleepH,sleepScore:form.sleepScore,rhr:form.rhr,sleepHr:form.sleepHr,pain:form.pain,state:form.state}:{});
+  // Leva o formulário inteiro, não uma lista de campos escolhidos a dedo. Enquanto era uma lista,
+  // cada campo novo (VFC, bem-estar, bandeiras de dor) era silenciosamente apagado ao anexar um
+  // print — o utilizador respondia, anexava a foto, e as respostas desapareciam.
+  const cur=Object.assign({},S.health[d]||{},form||{});
   let n=0;const conflitos=[];
   // Campo vazio: preenche. Campo já com outro valor: NÃO escreve por cima, mas também não pode
   // ficar calado — antes devolvia 0 e a app dizia "não reconheci números", o que era mentira.
@@ -1148,8 +1497,8 @@ function applyRead(d,read){
     else if(cur[k]!==read[k])conflitos.push({k,de:cur[k],para:read[k]});
   }
   if(n){
-    cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
-    if(cur.state==null)cur.state=2;
+    cur.pain=cur.pain||{};
+    for(const [k] of PAIN_SEGS)if(cur.pain[k]==null)cur.pain[k]=0;
     cur.at=new Date().toISOString();
     S.health[d]=cur;S.ui.hdraft=null;saveNow();
   }
@@ -1158,10 +1507,13 @@ function applyRead(d,read){
 // Escreve por cima com o que o print diz, quando o utilizador pede.
 function forceRead(d,conflitos){
   const form=$('#scr-saude')?healthDraft(d):null;
-  const cur=Object.assign({},S.health[d]||{},form?{sleepH:form.sleepH,sleepScore:form.sleepScore,rhr:form.rhr,sleepHr:form.sleepHr,pain:form.pain,state:form.state}:{});
+  // Leva o formulário inteiro, não uma lista de campos escolhidos a dedo. Enquanto era uma lista,
+  // cada campo novo (VFC, bem-estar, bandeiras de dor) era silenciosamente apagado ao anexar um
+  // print — o utilizador respondia, anexava a foto, e as respostas desapareciam.
+  const cur=Object.assign({},S.health[d]||{},form||{});
   for(const c of conflitos)cur[c.k]=c.para;
-  cur.pain=cur.pain||{ombro:0,cotovelo:0,joelho:0,costas:0};
-  if(cur.state==null)cur.state=2;
+  cur.pain=cur.pain||{};
+  for(const [k] of PAIN_SEGS)if(cur.pain[k]==null)cur.pain[k]=0;
   cur.at=new Date().toISOString();
   S.health[d]=cur;S.ui.hdraft=null;saveNow();render();
   toast('Atualizado com os valores do print',3000);
@@ -1184,7 +1536,9 @@ function initLog(e){
     case 'spider':return {laps:[]};
     case 'corrida_intervalos':return {reps:0,feel:(last&&last.feel)||3};
     case 'jogo':return {opp:(last&&last.opp)||'',sets:2,result:'',score:'',firstPct:(last&&last.firstPct)||55,df:0,wrong:'',notes:''};
-    case 'aula':return {durationMin:(last&&last.durationMin)||60,rpe:(last&&last.rpe)||6,chips:(last&&last.chips)?[...last.chips]:[],serves:(last&&last.serves)||0,notes:''};
+    // O RPE da aula não se pré-preenche. Herdar o 6 da aula anterior punha um número inventado
+    // na carga, que é pior que não ter nenhum: fica-se a achar que se mediu quando não se mediu.
+    case 'aula':return {durationMin:(last&&last.durationMin)||60,rpe:null,chips:(last&&last.chips)?[...last.chips]:[],serves:(last&&last.serves)||0,notes:''};
     case 'passos':return {steps:0,min:(last&&last.min)||0,pace:(last&&last.pace)||'normal'}; // passos nunca são pré-preenchidos: cada caminhada é diferente
   }
   return {};
@@ -1406,7 +1760,7 @@ function rpeGuiaHtml(){return `<details class="rpe-guia mt8"><summary>Não sei s
   <table class="table" style="margin-top:6px"><tbody>
   ${RPE_GUIA.map(([a,b,fala,ref])=>`<tr><td class="num" style="width:40px;font-weight:800;color:var(--${a<=3?'green':a<=6?'yellow':'red'})">${a===b?a:a+'-'+b}</td><td><b>${esc(fala)}</b><div class="muted xs">${esc(ref)}</div></td></tr>`).join('')}
   </tbody></table>
-  <div class="xs dim mt8">Na dúvida entre dois, escolhe o mais baixo: o rácio de carga engana-se menos por defeito do que por excesso.</div></details>`}
+  <div class="xs dim mt8">Na dúvida entre dois, escolhe o mais baixo: a carga engana-se menos por defeito do que por excesso.</div></details>`}
 
 // ---------- Cronómetro ----------
 const T={exId:null,mode:null,total:0,startAt:0,base:0,running:false,kind:null,phase:null,cls:''};
@@ -1494,7 +1848,9 @@ function finishSheet(){
   sheet(`<h2>Terminar sessão</h2><div class="small muted">${done.length}/${total} exercícios concluídos${sl?' · '+esc(sl):''}</div>
     ${done.length<total?`<button class="btn sm mt12" style="width:100%" data-act="s-fill-rest">Marcar os outros ${total-done.length} como feitos</button><div class="ghost-hint">Para quando treinaste sem o telemóvel. Não inventa números de serviço, spider nem jogo.</div>`:''}
     <div class="field"><label>Duração real</label><div class="row between"><div class="stepper"><button data-act="s-dur" data-n="-5">−</button><div class="val num" style="min-width:80px" id="fin-dur">${dur}<span class="unit">min</span></div><button data-act="s-dur" data-n="5">+</button></div><span class="small muted">cronómetro: ${el} min</span></div></div>
-    <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>${rpeGridHtml(a.rpe,'s-rpe')}
+    <div class="field"><label>RPE da sessão (1 muito leve · 10 máximo)</label>
+      <div class="xs dim" style="margin-bottom:6px">A quente, a última série domina a resposta e a sessão inteira fica mal classificada. O melhor é guardares agora e classificares daqui a ~30 min — a app pergunta.</div>
+      ${rpeGridHtml(a.rpe,'s-rpe')}
       ${(()=>{
         if(a.hrAvg){
           const ref=hrMaxRef();
@@ -1502,11 +1858,11 @@ function finishSheet(){
             a.rpeAuto?'Dá '+Math.round(100*a.hrAvg/ref.v)+'% da FC máxima, o que corresponde a RPE '+a.rpeAuto+'. Usei '+ref.v+' bpm como FC máxima, por '+esc(ref.fonte)+'. Muda o RPE se não bateu certo com o que sentiste.'
               :'Falta saber a tua FC máxima para converter isto num RPE. Põe a idade nas Definições, ou escolhe o RPE à mão.'}</div></div>`;
         }
-        return `<label class="btn sm mt8" style="width:100%">Classificar pelo print do relógio<input type="file" accept="image/*" class="hide" data-act-input="rpe-shot"></label>
-          <div class="ghost-hint">Anexa o resumo do treino (o ecrã com FC média e máxima). Leio os números e proponho o RPE; a imagem não fica guardada.</div>`;
+        return `<label class="btn sm mt8" style="width:100%">Classificar pelo print do relógio<input type="file" accept="image/*" multiple class="hide" data-act-input="rpe-shot"></label>
+          <div class="ghost-hint">Anexa o resumo do treino (o ecrã com FC média e máxima). Podes escolher vários: fico pelo primeiro que tenha a FC média. A imagem não fica guardada.</div>`;
       })()}</div>
     <div class="field"><label>Notas</label><textarea class="input" id="fin-notes" placeholder="o que aprendi, o que ajustar…">${esc(a.notes||'')}</textarea></div>
-    <div class="sheet-foot"><button class="btn primary" style="min-height:54px;width:100%" data-act="s-save-final">Guardar sessão</button>
+    <div class="sheet-foot"><button class="btn primary" style="min-height:54px;width:100%" data-act="s-save-final">${a.rpe?'Guardar sessão':'Guardar e classificar daqui a 30 min'}</button>
     <button class="btn ghost sm" style="width:100%" data-act="close-sheet">Voltar à sessão</button></div>`);
 }
 function summaryLine(sess,logs){
@@ -1548,6 +1904,9 @@ function saveActive(){
   const rec={id:a.id,date:a.date,key:a.key,planned:a.planned,name:s.name,short:s.short,intensity:s.intensity,factor:s.factor,opts:s.opts||{},
     durationMin:isLesson?aula.durationMin:(a.durationMin||s.est),rpe:isLesson?aula.rpe:(a.rpe||null),notes:isLesson?aula.notes:(a.notes||''),
     startedAt:a.startedAt,endedAt:Date.now(),logs:a.logs,swapReason:a.swapReason,swapDetail:a.swapDetail,extra:a.extra,
+    // Sem RPE a sessão guarda-se na mesma, mas fica marcada para a app voltar a perguntar ~30 min
+    // depois. Uma aula por classificar conta zero na carga, e as aulas são metade do treino.
+    rpeDueAt:(isLesson?aula.rpe:a.rpe)?null:Date.now()+RPE_DELAY_MIN*60000,
     hrAvg:a.hrAvg||null,hrMax:a.hrMax||null,rpeAuto:a.rpeAuto||null,
     exercises:s.blocks.flatMap(b=>b.ex.map(e=>({id:e.id,name:e.name,type:e.type,sets:e.sets,reps:e.reps,unit:e.unit,perSide:e.perSide,rounds:e.rounds,secs:e.secs,repsTarget:e.reps}))),
     summaryLine:resumo,stats};
@@ -1697,11 +2056,27 @@ function renderProgresso(){
   const hasLoad=weeks.some(x=>x.l>0);
   h+=`<div class="sec">Carga semanal <span class="muted xs" style="text-transform:none;letter-spacing:0;font-weight:600">Σ duração × RPE · banda ótima 0.8-1.3× média 4 sem</span></div><div class="card">`;
   if(!hasLoad)h+=`<div class="empty">A carga aparece depois da primeira sessão com RPE.</div>`;
-  else{const ac=acwr(today());const bandOk=band.map(b=>b.lo==null?{lo:0,hi:0}:b);
-    h+=`<div class="row" style="gap:18px"><div><div class="kpi num">${weeks[11].l}</div><div class="label">esta semana</div></div><div><div class="kpi md num">${weeks[10].l}</div><div class="label">semana passada</div></div><div><div class="kpi md num ${ac.calibrated?(ac.ratio>1.3||ac.ratio<0.8?'y':'g'):''}">${ac.ratio!=null?ac.ratio.toFixed(2):'–'}</div><div class="label">rácio A:C</div></div></div>
+  else{const fo=foster(today());const bandOk=band.map(b=>b.lo==null?{lo:0,hi:0}:b);
+    h+=`<div class="row" style="gap:18px"><div><div class="kpi num">${weeks[11].l}</div><div class="label">esta semana</div></div><div><div class="kpi md num ${fo.mono!=null&&fo.mono>2?'y':'g'}">${fo.mono!=null?fo.mono.toFixed(1):'–'}</div><div class="label">monotonia</div></div><div><div class="kpi md num">${fo.strain!=null?fmtN(fo.strain):'–'}</div><div class="label">strain</div></div></div>
       ${lineChart({bars:weeks.map(x=>({y:x.l,color:x.w%4===0?'var(--muted)':'var(--blue)'})),band:bandOk.some(b=>b.hi>0)?bandOk:null,yMin:0,xLabels:[{i:0,t:'sem '+weeks[0].w},{i:11,t:'sem '+weeks[11].w}]})}
-      <div class="legend"><span><i style="background:var(--blue)"></i>carga</span><span><i style="background:var(--muted)"></i>semana de descarga</span><span><i style="background:var(--green);opacity:.4"></i>banda ótima</span></div>`}
+      <div class="legend"><span><i style="background:var(--blue)"></i>carga</span><span><i style="background:var(--muted)"></i>semana de descarga</span><span><i style="background:var(--green);opacity:.4"></i>banda ótima</span></div>
+      <div class="xs dim mt8"><b>Monotonia</b> = média diária ÷ desvio-padrão dos últimos 7 dias. Acima de 2 a semana é toda igual, e é isso que cansa sem fazer progredir — o corpo adapta-se ao contraste entre dias fortes e dias leves. <b>Strain</b> = carga × monotonia: a mesma carga custa mais quando é monótona.</div>`}
   h+=`</div>`;
+  // --- Serviços ---
+  const wiNow=weekInfo(today());const svw=servesWeek(today());const svq=serveQuota(wiNow.w,wiNow.deload);
+  h+=`<div class="sec">Serviços <span class="muted xs" style="text-transform:none;letter-spacing:0;font-weight:600">quota semanal, como a corda</span></div><div class="card">`;
+  h+=`<div class="row" style="gap:18px"><div><div class="kpi num ${svw.n>svq?'y':'g'}">${svw.n}</div><div class="label">esta semana <span class="dim">/${svq}</span></div></div>
+    <div class="grow"><div class="pbar"><i style="width:0;background:var(--${svw.n>svq?'yellow':'green'})" data-w="${pct(Math.min(svw.n,svq*1.5),svq*1.5)}%"></i></div>
+    <div class="xs dim mt4">O serviço com efeito é o golpe que mais carrega o ombro e o cotovelo, e a fase 1 é toda sobre ele. A quota sobe 10% por semana até 320.${svw.est?' O jogo entra estimado a 30 serviços por set.':''}</div></div></div>`;
+  const svd=Array.from({length:7},(_,i)=>{const dd=addDays(mondayOf(today()),i);return {d:dd,n:servesOn(dd).n}});
+  if(svw.n)h+=`<div class="row between xs dim mt8">${svd.map(x=>`<span>${DIAS[dow(x.d)].slice(0,3)} ${x.n||'–'}</span>`).join('')}</div>`;
+  h+=`</div>`;
+  // --- Rácio A:C, só informativo ---
+  const ac=acwr(today());
+  h+=`<div class="sec">Rácio agudo/crónico <span class="muted xs" style="text-transform:none;letter-spacing:0;font-weight:600">informativo · não decide nada</span></div><div class="card">
+    <div class="row" style="gap:18px"><div><div class="kpi md num">${ac.ratio!=null?ac.ratio.toFixed(2):'–'}</div><div class="label">${ac.calibrated?'A:C':'a calibrar '+Math.min(ac.daysData,14)+'/14'}</div></div>
+      <div class="grow small muted">Aguda ${Math.round(ac.acute)}/dia · crónica ${Math.round(ac.chronic)}/dia.</div></div>
+    <div class="xs dim mt8">Deixou de decidir por duas razões. A esta escala (5-6 sessões por semana) uma sessão a mais mexe a média aguda 15-20%, o que é ruído a fingir de sinal. E a semana aguda está contida na crónica, portanto o rácio está parcialmente correlacionado consigo próprio — a zona 0.8-1.3 nunca provou ser causal, nem no desporto profissional. Fica como contexto; quem decide é a carga semanal e a monotonia.</div></div>`;
   // --- Força ---
   const strengthIds=Object.keys(EX).filter(k=>EX[k].type==='sets_reps'&&EX[k].unit!=='s');
   const withData=strengthIds.filter(id=>recs.some(r=>r.stats&&r.stats.strength&&r.stats.strength[id]));
@@ -1834,13 +2209,24 @@ const ACT={
   'undo-override'(el){const d=el.dataset.d;delete S.overrides[d];S.swaps=S.swaps.filter(s=>!(s.date===d&&!s.done));save();render();toast('Troca anulada')},
   // saúde
   'hdate'(el){const d=S.ui.healthDate||today();S.ui.hdraft=null;S.ui.healthDate=addDays(d,num(el.dataset.n));if(S.ui.healthDate>today())S.ui.healthDate=today();save();render()},
-  // Dor: sem dor → leve → forte → sem dor. Zero toques num dia normal.
-  'hpain'(el){const c=num(el.dataset.v);const v=c>=2?0:c===1?3:1;
-    hdraft('pain',{[el.dataset.k]:v});
-    el.dataset.v=v;const L=(PAIN_SEGS.find(x=>x[0]===el.dataset.k)||[,''])[1];
-    el.className='chip pain '+(v===1?'p1':v>=2?'p2':'');
-    el.textContent=L+(v>=2?' · forte':v===1?' · leve':'')},
-  'hstate'(el){hdraft('state',num(el.dataset.v));$$('[data-act="hstate"]').forEach(b=>b.classList.toggle('on',b===el))},
+  // Dor 0-10: abre a zona e escolhe o número. Zero toques num dia sem dor.
+  'hpain-open'(el){const k=el.dataset.k;S.ui.painOpen=S.ui.painOpen===k?null:k;save();renderSaude()},
+  'hpain'(el){hdraft('pain',{[el.dataset.k]:num(el.dataset.v)});S.ui.painOpen=null;save();renderSaude()},
+  'hflag'(el){const k=el.dataset.k;const cur=(S.ui.hdraft&&S.ui.hdraft.painFlags)||{};
+    hdraft('painFlags',Object.assign({},cur,{[k]:!cur[k]}));renderSaude()},
+  'hwell'(el){hdraft(el.dataset.k,num(el.dataset.v));renderSaude()},
+  // RPE diferido
+  'pend-rpe'(el){
+    const idEl=$('#pend-id');if(!idEl)return;
+    const rec=S.sessions.find(s=>s.id===idEl.value);
+    if(!rec){toast('Já não encontro essa sessão');render();return}
+    rec.rpe=num(el.dataset.v);rec.rpeDueAt=null;save();render();
+    toast(esc(rec.short||rec.name)+' classificada com RPE '+rec.rpe+' · carga '+sessionLoad(rec),3500);
+  },
+  'rpe-now'(el){
+    const rec=S.sessions.find(s=>s.id===el.dataset.id);
+    if(!rec)return;rec.rpeDueAt=Date.now()-1;save();render();
+  },
   'hsave'(){const d=hDate();S.health[d]=healthDraft(d);S.ui.hdraft=null;save();const r=readiness(d);toast(r?'Prontidão '+r.score+' · '+r.band.name:'Check-in guardado');S.ui.healthDate=null;render()},
   'shot-del'(el){const d=hDate();const id=el.dataset.id;
     if(!((S.shots&&S.shots[d])||[]).some(s=>s.id===id))return;
@@ -1955,8 +2341,10 @@ document.addEventListener('change',e=>{
   if(el.dataset.actInput==='import-json'){const f=el.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>importJSONText(rd.result);rd.readAsText(f);el.value=''}
   if(el.dataset.actInput==='import-health'){const f=el.files[0];el.value='';if(f)importHealthFile(f)}
   if(el.dataset.actInput==='import-csv'){const f=el.files[0];el.value='';if(f)importCSVFile(f)}
-  if(el.dataset.actInput==='shot-add'){const f=el.files[0];el.value='';if(f)addShot(hDate(),f)}
-  if(el.dataset.actInput==='rpe-shot'){const f=el.files[0];el.value='';if(f)rpeFromShot(f)}
+  // Vários prints de uma vez: o ecrã do sono, o da FC e o do treino vêm quase sempre no mesmo
+  // lote. Processa em série (o OCR é pesado) e pára assim que o dia enche.
+  if(el.dataset.actInput==='shot-add'){const fs=[...el.files];el.value='';addShots(hDate(),fs)}
+  if(el.dataset.actInput==='rpe-shot'){const fs=[...el.files];el.value='';if(fs.length)rpeFromShots(fs)}
 });
 
 // ============================== IMPORTAÇÃO: APPLE HEALTH / CSV ==============================
@@ -1972,12 +2360,13 @@ function toLocalDate(s){ // "2026-09-01 07:12:00 +0100" | ISO | "Sep 1, 2026, 7:
 function parseAttrs(str){const o={};str.replace(/([\w:]+)="([^"]*)"/g,(_,k,v)=>{o[k]=v});return o}
 // Acumulador de registos do Apple Health
 function healthAcc(){
-  return {rhr:{},sleep:{},steps:{},workouts:[],n:0,
+  return {rhr:{},sleep:{},steps:{},hrv:{},workouts:[],n:0,
     feed(text){
       const re=/<(Record|Workout)\s([^>]*?)\/?>/g;let m;
       while((m=re.exec(text))){this.n++;const a=parseAttrs(m[2]);
         if(m[1]==='Record'){
           if(a.type==='HKQuantityTypeIdentifierRestingHeartRate'){const d=toLocalDate(a.startDate);const v=parseFloat(a.value);if(d&&v>25&&v<150)(this.rhr[d]=this.rhr[d]||[]).push(v)}
+          else if(a.type==='HKQuantityTypeIdentifierHeartRateVariabilitySDNN'){const d=toLocalDate(a.startDate);const v=parseFloat(a.value);if(d&&v>3&&v<400)(this.hrv[d]=this.hrv[d]||[]).push(v)}
           else if(a.type==='HKQuantityTypeIdentifierStepCount'){const d=toLocalDate(a.startDate);const v=parseFloat(a.value);if(d&&v>0){const s=this.steps[d]=this.steps[d]||{};const k=a.sourceName||'?';s[k]=(s[k]||0)+v}}
           else if(a.type==='HKCategoryTypeIdentifierSleepAnalysis'){if(/InBed|Awake/.test(a.value||''))continue;const t0=Date.parse(a.startDate.replace(' ','T').replace(/ ([+-]\d{4})$/,'$1')),t1=Date.parse(a.endDate.replace(' ','T').replace(/ ([+-]\d{4})$/,'$1'));if(isNaN(t0)||isNaN(t1))continue;const day=isoOf(new Date(t1));/* noite atribuída ao dia em que acorda */const key=(a.sourceName||'?');const s=this.sleep[day]=this.sleep[day]||{};s[key]=(s[key]||0)+(t1-t0)/3600000}
         }else{const d=toLocalDate(a.startDate);if(!d)continue;const type=(a.workoutActivityType||'').replace('HKWorkoutActivityType','');let min=parseFloat(a.duration);if(a.durationUnit==='sec')min/=60;if(a.durationUnit==='hr')min*=60;if(!isFinite(min)||min<3)continue;this.workouts.push({date:d,type,min:Math.round(min),src:'Apple Health'})}
@@ -1986,6 +2375,8 @@ function healthAcc(){
     result(){
       const daily={};
       for(const [d,vs] of Object.entries(this.rhr))daily[d]=Object.assign(daily[d]||{},{rhr:Math.round(median(vs))});
+      // VFC: várias leituras por noite. A mediana do dia é mais estável que a média.
+      for(const [d,vs] of Object.entries(this.hrv))daily[d]=Object.assign(daily[d]||{},{hrv:Math.round(median(vs))});
       for(const [d,bySrc] of Object.entries(this.sleep)){const h=Math.max(...Object.values(bySrc));if(h>=1&&h<=16)daily[d]=Object.assign(daily[d]||{},{sleepH:Math.round(h*10)/10})}
       // iPhone e relógio contam os mesmos passos: usar a fonte com mais, nunca somar
       for(const [d,bySrc] of Object.entries(this.steps)){const n=Math.round(Math.max(...Object.values(bySrc)));if(n>0&&n<200000)daily[d]=Object.assign(daily[d]||{},{steps:n})}
